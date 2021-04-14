@@ -83,8 +83,8 @@ def wait_for_inputs_upload(stub, metadata, input_ids):
                     f"Full response: {get_input_response}"
                 )
     # At this point, all inputs have been downloaded successfully.
-    # Add 2 seconds sleep here, it is possible that can't get successful input in database under high load, 
-    time.sleep(1)
+    # Add 3 seconds sleep here, it is possible that can't get successful input in database under high load, 
+    time.sleep(3)
 
 
 def wait_for_model_trained(stub, metadata, model_id, model_version_id):
