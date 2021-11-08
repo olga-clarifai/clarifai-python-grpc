@@ -16,7 +16,7 @@ GT_LABELS = ['adult_&_explicit_sexual_content',
 GT_LABELS_ = [label + '_y' for label in GT_LABELS]
 
 
-def load_from_csv(input_ids, csv_path, negative_concept):
+def load_from_csv(input_ids, csv_path, safe_gt):
 
     # Map video ids to their input hash
     id_to_hash = {}
@@ -52,7 +52,7 @@ def load_from_csv(input_ids, csv_path, negative_concept):
                             logging.warning('\t Incorrect ground truth for {}. Input ignored.'.format(line['video_id']))
                             break
                 if not gt_labels:
-                    gt_labels = [negative_concept]
+                    gt_labels = [safe_gt]
                 ground_truth[hash] = gt_labels
     
     # Count number of inputs with no ground truth
@@ -80,7 +80,7 @@ def load_from_metadata(input_ids):
 
     logging.info('Ground truth extracted from metadata.')
 
-    return ground_truth
+    return ground_truth, 0
 
 
 def _clean_key(key):
