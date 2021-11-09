@@ -48,12 +48,12 @@ def get_input_ids(metadata):
   logger.info("Input ids fetched. Number of fetched inputs: {}".format(len(input_ids)))
 
   # ------ DEBUG CODE
-  input_ids_ = {}
-  for id in list(input_ids.keys())[200:250]:
-    input_ids_[id] = input_ids[id]
-  input_ids = input_ids_
-  print("Number of selected inputs: {}".format(len(input_ids)))
-  # ------ DEBUG CODE
+  # input_ids_ = {}
+  # for id in list(input_ids.keys())[200:250]:
+  #   input_ids_[id] = input_ids[id]
+  # input_ids = input_ids_
+  # print("Number of selected inputs: {}".format(len(input_ids)))
+  # # ------ DEBUG CODE
 
   return input_ids, len(input_ids)
 
@@ -276,10 +276,10 @@ def compute_distribution(annotations_meta):
   # Dictionary of all annotations with number of their occurrences
   annotations_distribution = {}
 
-  for meta in annotations_meta:
+  for meta in annotations_meta.values():
 
     # Count all annotations
-    annotations = [m[0] for m in meta]
+    annotations = [m['concept'] for m in meta]
     for annotation in annotations:
       if annotation in annotations_distribution:
         annotations_distribution[annotation] += 1
@@ -289,10 +289,10 @@ def compute_distribution(annotations_meta):
     # Change format to {user: [list of labels]}
     user_annotations = {}
     for m in meta:
-      if m[1] in user_annotations:
-        user_annotations[m[1]].append(m[0])
+      if m['userId'] in user_annotations:
+        user_annotations[m['userId']].append(m['concept'])
       else:
-        user_annotations[m[1]] = [m[0]]
+        user_annotations[m['userId']] = [m['concept']]
 
     # Compute number of '1-' duplicates
     for user, annotation in user_annotations.items():
@@ -307,15 +307,17 @@ def compute_distribution(annotations_meta):
   return annotations_distribution, duplicates_count_1, duplicates_count_2
 
     
-
-
 def plot_results(args, input_count, not_annotated_count, no_consensus_count, totals,
                  annotations_distribution, duplicates_count_1, duplicates_count_2, conflict_count):
     ''' Print results in the console '''
     
-    print("\n**************************************************")
+    print("\n**************************************************\n")
     print("Retrieved: {} ".format(input_count))
     print("Not annotated: {} | No consensus: {}".format(not_annotated_count, no_consensus_count))
+    print("Number of conflicts: {}".format(conflict_count))
+    print("Number of duplicates '1-' : {} | '2-': {}".
+          format(duplicates_count_1, duplicates_count_2))
+    print("\n--------------------------------------------------\n")
 
     # Print total count for every category (annotation)
     for annotation in args.positive_annotations:
@@ -323,15 +325,12 @@ def plot_results(args, input_count, not_annotated_count, no_consensus_count, tot
             format(annotation, totals[annotation]['_LP_'], totals[annotation]['_LN_'], totals[annotation]['_LS_']))
 
     print("\n--------------------------------------------------\n")
-    print("Number of conflicts: {}".format(conflict_count))
-    print("Number of '1-' duplicates: {} | Number of '2-' duplicates: {}".
-          format(duplicates_count_1, duplicates_count_2))
-    
-    # Print distribution of annotations
-    for annotation in annotations_distribution:
-      print("{}: {}".format(annotation, annotations_distribution[annotation]))
 
-    print("**************************************************\n")
+    # Print distribution of annotations
+    for annotation in sorted(annotations_distribution.keys()):
+      print("{}\t {}".format(annotations_distribution[annotation], annotation))
+
+    print("\n**************************************************\n")
     
 
 def get_conflicting_annotations(input_ids, conflict_ids, annotations_meta, consensus):
@@ -407,14 +406,14 @@ def main(args, metadata):
 if __name__ == '__main__':  
   parser = argparse.ArgumentParser(description="Run tracking.")
   parser.add_argument('--app_name',
-                      default='Batch1',
+                      default='',
                       help="Name of the app in Clarifai UI.")
   parser.add_argument('--group',
                       default='Hate_Speech',
                       choices={'Hate_Speech', 'Group_1'},
                       help="Name of the group.")
   parser.add_argument('--api_key',
-                      default='a03cdd0f5d9d436dbc7188099051c998',
+                      default='',
                       help="API key to the required application.")                     
   parser.add_argument('--consensus_count',
                       default=3,
