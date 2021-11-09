@@ -47,18 +47,18 @@ def get_input_ids(metadata):
   
   logger.info("Input ids fetched. Number of fetched inputs: {}".format(len(input_ids)))
 
-  # # ------ DEBUG CODE
-  # input_ids_ = {}
-  # for id in list(input_ids.keys())[200:250]:
-  #   input_ids_[id] = input_ids[id]
-  # input_ids = input_ids_
-  # print("Number of selected inputs: {}".format(len(input_ids)))
-  # # ------ DEBUG CODE
+  # ------ DEBUG CODE
+  input_ids_ = {}
+  for id in list(input_ids.keys())[200:250]:
+    input_ids_[id] = input_ids[id]
+  input_ids = input_ids_
+  print("Number of selected inputs: {}".format(len(input_ids)))
+  # ------ DEBUG CODE
 
   return input_ids, len(input_ids)
 
 
-def get_annotations(metadata, input_ids):
+def get_annotations(args, metadata, input_ids):
   ''' Get list of annotations for every input id'''
 
   # Variable to check if number of annotations per page is sufficient
@@ -267,7 +267,50 @@ def compute_totals(args, input_ids, classes):
   return totals
   
 
-def plot_results(args, input_count, not_annotated_count, no_consensus_count, totals):
+def compute_distribution(annotations_meta):
+  ''' Compute number of occurrences for each label sub-category '''
+
+  # Number of '1-' and '2-' duplicates
+  duplicates_count_1, duplicates_count_2 = 0, 0 
+
+  # Dictionary of all annotations with number of their occurrences
+  annotations_distribution = {}
+
+  for meta in annotations_meta:
+
+    # Count all annotations
+    annotations = [m[0] for m in meta]
+    for annotation in annotations:
+      if annotation in annotations_distribution:
+        annotations_distribution[annotation] += 1
+      else:
+        annotations_distribution[annotation] = 1
+
+    # Change format to {user: [list of labels]}
+    user_annotations = {}
+    for m in meta:
+      if m[1] in user_annotations:
+        user_annotations[m[1]].append(m[0])
+      else:
+        user_annotations[m[1]] = [m[0]]
+
+    # Compute number of '1-' duplicates
+    for user, annotation in user_annotations.items():
+      annotation_ = list(set([a[0:4] for a in annotation if '1-' in a]))
+      duplicates_count_1 += len(annotation) - len(annotation_)
+
+    # Compute number of '2-' duplicates
+    for user, annotation in user_annotations.items():
+      annotation_ = list(set([a[0:4] for a in annotation if '2-' in a]))
+      duplicates_count_2 += len(annotation) - len(annotation_)
+
+  return annotations_distribution, duplicates_count_1, duplicates_count_2
+
+    
+
+
+def plot_results(args, input_count, not_annotated_count, no_consensus_count, totals,
+                 annotations_distribution, duplicates_count_1, duplicates_count_2, conflict_count):
     ''' Print results in the console '''
     
     print("\n**************************************************")
@@ -278,6 +321,15 @@ def plot_results(args, input_count, not_annotated_count, no_consensus_count, tot
     for annotation in args.positive_annotations:
       print("{} --- Positives: {} | Negatives: {} | Safe: {}".
             format(annotation, totals[annotation]['_LP_'], totals[annotation]['_LN_'], totals[annotation]['_LS_']))
+
+    print("\n--------------------------------------------------\n")
+    print("Number of conflicts: {}".format(conflict_count))
+    print("Number of '1-' duplicates: {} | Number of '2-' duplicates: {}".
+          format(duplicates_count_1, duplicates_count_2))
+    
+    # Print distribution of annotations
+    for annotation in annotations_distribution:
+      print("{}: {}".format(annotation, annotations_distribution[annotation]))
 
     print("**************************************************\n")
     
@@ -325,7 +377,7 @@ def main(args, metadata):
   input_ids, input_count = get_input_ids(metadata)
 
   # Get annotations for every id together with their aggregations
-  annotations, annotations_meta = get_annotations(metadata, input_ids)
+  annotations, annotations_meta = get_annotations(args, metadata, input_ids)
   aggregated_annotations, not_annotated_count = aggregate_annotations(args, input_ids, annotations)
 
   # Compute consensus
@@ -335,8 +387,12 @@ def main(args, metadata):
   classes = assign_classes(args, input_ids, consensus)
   totals = compute_totals(args, input_ids, classes)
 
+  # Compute distirbution of different annotations
+  annotations_distribution, duplicates_count_1, duplicates_count_2 = compute_distribution(annotations_meta)
+
   # Plot statistics using computed values
-  plot_results(args, input_count, not_annotated_count, no_consensus_count, totals) 
+  plot_results(args, input_count, not_annotated_count, no_consensus_count, totals,
+               annotations_distribution, duplicates_count_1, duplicates_count_2, len(conflict_ids))
 
   # Save annotations in csv file
   save_annotations_csv(args, input_ids, classes, 'annotations')
@@ -351,14 +407,14 @@ def main(args, metadata):
 if __name__ == '__main__':  
   parser = argparse.ArgumentParser(description="Run tracking.")
   parser.add_argument('--app_name',
-                      default='',
+                      default='Batch1',
                       help="Name of the app in Clarifai UI.")
   parser.add_argument('--group',
                       default='Hate_Speech',
                       choices={'Hate_Speech', 'Group_1'},
                       help="Name of the group.")
   parser.add_argument('--api_key',
-                      default='',
+                      default='a03cdd0f5d9d436dbc7188099051c998',
                       help="API key to the required application.")                     
   parser.add_argument('--consensus_count',
                       default=3,
@@ -372,7 +428,7 @@ if __name__ == '__main__':
                       default='', 
                       help="Path to general output directory for this script.")
   parser.add_argument('--save_annotations',
-                      default=True,
+                      default=False,
                       type=lambda x: (str(x).lower() == 'true'),
                       help="Save annotations in csv file or not.")
   parser.add_argument('--save_conflicts',
