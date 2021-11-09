@@ -4,6 +4,8 @@ import argparse
 import itertools
 import logging
 
+from save_annotations import save_annotations_csv
+
 # Import in the Clarifai gRPC based objects needed
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2, service_pb2_grpc
@@ -45,13 +47,13 @@ def get_input_ids(metadata):
   
   logger.info("Input ids fetched. Number of fetched inputs: {}".format(len(input_ids)))
 
-  # ------ DEBUG CODE
-  input_ids_ = {}
-  for id in list(input_ids.keys())[100:250]:
-    input_ids_[id] = input_ids[id]
-  input_ids = input_ids_
-  print("Number of selected inputs: {}".format(len(input_ids)))
-  # ------ DEBUG CODE
+  # # ------ DEBUG CODE
+  # input_ids_ = {}
+  # for id in list(input_ids.keys())[200:250]:
+  #   input_ids_[id] = input_ids[id]
+  # input_ids = input_ids_
+  # print("Number of selected inputs: {}".format(len(input_ids)))
+  # # ------ DEBUG CODE
 
   return input_ids, len(input_ids)
 
@@ -204,8 +206,8 @@ def compute_consensus(args, input_ids, aggregated_annotations):
 
         # If conflict between consenuses exist,
         # keep only positive consensus
-        if any(v for k, v in consensus_exists if k in args.positive_annotations) and \
-           args.safe_annotation in consensus_exists and consensus_exists[args.positive_annotation]:
+        if any(v for k, v in consensus_exists.items() if k in args.positive_annotations) and \
+           args.safe_annotation in consensus_exists and consensus_exists[args.safe_annotation]:
             # Save only consensus for positive annotations
             consensus_exists.pop(args.safe_annotation)
             conflict_ids.append(input_id)
@@ -223,18 +225,20 @@ def assign_classes(args, input_ids, consensus):
 
   classes = {}
   for input_id in input_ids:
-    classes_ = {}
-
-    # Assign labels
+    
+    # Assign classes
     if input_id in consensus:
+      classes_ = {}
       for annotation in args.positive_annotations:
         if consensus[input_id] is None:
           classes_[annotation] = '_LN_'
-        elif annotation in consensus:
+        elif annotation in consensus[input_id]:
           classes_[annotation] = '_LP_'
         elif args.safe_annotation in consensus[input_id]:
           classes_[annotation] = '_LS_'
-    classes[input_id] = classes_
+      classes[input_id] = classes_
+    else:
+      classes[input_id] = None
 
   logger.info("Classes assigned.")
   return classes
@@ -250,7 +254,7 @@ def compute_totals(args, input_ids, classes):
     totals_ = {'_LP_': 0, '_LN_': 0, '_LS_': 0}
 
     for input_id in input_ids:
-      if input_id in classes:
+      if input_id in classes and classes[input_id] is not None:
         if '_LP_' in classes[input_id][annotation]:
           totals_['_LP_'] += 1
         if '_LN_' in classes[input_id][annotation]:
@@ -266,7 +270,7 @@ def compute_totals(args, input_ids, classes):
 def plot_results(args, input_count, not_annotated_count, no_consensus_count, totals):
     ''' Print results in the console '''
     
-    print("\n*******************************************")
+    print("\n**************************************************")
     print("Retrieved: {} ".format(input_count))
     print("Not annotated: {} | No consensus: {}".format(not_annotated_count, no_consensus_count))
 
@@ -275,7 +279,7 @@ def plot_results(args, input_count, not_annotated_count, no_consensus_count, tot
       print("{} --- Positives: {} | Negatives: {} | Safe: {}".
             format(annotation, totals[annotation]['_LP_'], totals[annotation]['_LN_'], totals[annotation]['_LS_']))
 
-    print("*******************************************\n")
+    print("**************************************************\n")
     
 
 def get_conflicting_annotations(input_ids, conflict_ids, annotations_meta, consensus):
@@ -306,16 +310,16 @@ def save_data(args, to_save, data, name):
   ''' Dump provided data to a json file '''
 
   if to_save:
-    with open("{}/{}/{}_{}_{}.json".format(args.out_path, name, 
-                                        args.app_name, 
-                                        args.experiment_name.replace(' ', '-'),
-                                        name), 'w') as f:
+    path = "{}/{}/{}_{}_{}.json".format(args.out_path, name, args.app_name, 
+                                        args.group, name)
+
+    with open(path, 'w') as f:
       json.dump(data, f)
 
 
 def main(args, metadata):
 
-  logger.info("----- Experiment {} - {} running -----".format(args.app_name, args.experiment_name))
+  logger.info("----- Experiment {} - {} running -----".format(args.app_name, args.group))
 
   # Get input ids
   input_ids, input_count = get_input_ids(metadata)
@@ -329,10 +333,13 @@ def main(args, metadata):
 
   # Compute results
   classes = assign_classes(args, input_ids, consensus)
-  totals = compute_totals(input_ids, classes)
+  totals = compute_totals(args, input_ids, classes)
 
   # Plot statistics using computed values
-  plot_results(input_count, not_annotated_count, no_consensus_count, totals) 
+  plot_results(args, input_count, not_annotated_count, no_consensus_count, totals) 
+
+  # Save annotations in csv file
+  save_annotations_csv(args, input_ids, classes, 'annotations')
 
   if conflict_ids:
     conflicts = get_conflicting_annotations(input_ids, conflict_ids, annotations_meta, consensus)
@@ -365,7 +372,7 @@ if __name__ == '__main__':
                       default='', 
                       help="Path to general output directory for this script.")
   parser.add_argument('--save_annotations',
-                      default=False,
+                      default=True,
                       type=lambda x: (str(x).lower() == 'true'),
                       help="Save annotations in csv file or not.")
   parser.add_argument('--save_conflicts',
