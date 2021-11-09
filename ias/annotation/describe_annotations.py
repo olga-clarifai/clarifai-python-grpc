@@ -45,13 +45,13 @@ def get_input_ids(metadata):
   
   logger.info("Input ids fetched. Number of fetched inputs: {}".format(len(input_ids)))
 
-  # # ------ DEBUG CODE
-  # input_ids_ = {}
-  # for id in list(input_ids.keys())[200:250]:
-  #   input_ids_[id] = input_ids[id]
-  # input_ids = input_ids_
-  # print("Number of selected inputs: {}".format(len(input_ids)))
-  # # ------ DEBUG CODE
+  # ------ DEBUG CODE
+  input_ids_ = {}
+  for id in list(input_ids.keys())[100:250]:
+    input_ids_[id] = input_ids[id]
+  input_ids = input_ids_
+  print("Number of selected inputs: {}".format(len(input_ids)))
+  # ------ DEBUG CODE
 
   return input_ids, len(input_ids)
 
@@ -112,7 +112,25 @@ def get_annotations(metadata, input_ids):
                                   'duplicates': len(meta_) - len(meta)})
 
     # Extract concepts only
-    annotations[input_id] = [m['concept'] for m in meta if '2-' in m['concept']]
+    if args.broad_consensus:
+      user_annotations = {}
+      for m in meta_:
+        # Extract '2-' only
+        if '2-' in m[0]:
+          annotation = m[0] if m[0] == args.safe_annotation else m[0][0:4] # TODO: eliminate 0:4 notation
+          if m[1] in user_annotations:
+            user_annotations[m[1]].append(annotation)
+          else:
+            user_annotations[m[1]] = [annotation]
+
+      # Eliminate duplicate concepts within a user      
+      annotation = []
+      for user in user_annotations:
+        annotation += list(set(user_annotations[user]))
+      annotations[input_id] = annotation
+
+    else:
+      annotations[input_id] = [m['concept'] for m in meta if '2-' in m['concept']]
 
     # Update max count variable
     annotation_nb_max = max(annotation_nb_max, len(list_annotations_response.annotations))
@@ -147,20 +165,8 @@ def aggregate_annotations(args, input_ids, annotations):
   not_annotated_count = 0
 
   for input_id in input_ids:
-    if args.broad_consensus:
-      # Abbreviate concepts to a common key is they contain that key (ex. 2-HB)
-      aggregation = []
-      for annotation in annotations[input_id]:
-        if args.positive_annotation in annotation:
-          aggregation.append(args.positive_annotation)
-        else:
-          aggregation.append(annotation)
-      # Aggregate (count number of occurences of each concept)
-      aggregation = {a:aggregation.count(a) for a in aggregation}
-    else:
-      # Aggregate without abbreviation 
-      aggregation = {a:annotations[input_id].count(a) for a in annotations[input_id]}
-      
+    # Aggregate
+    aggregation = {a:annotations[input_id].count(a) for a in annotations[input_id]}
     if not aggregation:
         not_annotated_count += 1
     else:
@@ -198,10 +204,8 @@ def compute_consensus(args, input_ids, aggregated_annotations):
 
         # If conflict between consenuses exist,
         # keep only positive consensus
-        if args.positive_annotation in consensus_exists and \
-           args.safe_annotation in consensus_exists and \
-           consensus_exists[args.positive_annotation] and \
-           consensus_exists[args.safe_annotation]:
+        if any(v for k, v in consensus_exists if k in args.positive_annotations) and \
+           args.safe_annotation in consensus_exists and consensus_exists[args.positive_annotation]:
             # Save only consensus for positive annotations
             consensus_exists.pop(args.safe_annotation)
             conflict_ids.append(input_id)
@@ -213,55 +217,64 @@ def compute_consensus(args, input_ids, aggregated_annotations):
   return consensus, no_consensus_count, conflict_ids
 
 
-def compute_classes(args, input_ids, consensus):
-  ''' Compute belonging of each input to the following classes: 
+def assign_classes(args, input_ids, consensus):
+  ''' Assign class to each input/category pair: 
       Labels _LP_ (positive), _LN_ (negative), _LS_ (safe) '''
 
   classes = {}
   for input_id in input_ids:
-    classes_ = []
+    classes_ = {}
 
-    # Labels
-    if input_id in consensus and consensus[input_id] is not None:
-      if args.positive_annotation in consensus[input_id]:
-        classes_.append('_LP_')
-      elif args.safe_annotation in consensus[input_id]:
-        classes_.append('_LN_')
-        classes_.append('_LS_')
-      else:
-        classes_.append('_LN_')  
-
+    # Assign labels
+    if input_id in consensus:
+      for annotation in args.positive_annotations:
+        if consensus[input_id] is None:
+          classes_[annotation] = '_LN_'
+        elif annotation in consensus:
+          classes_[annotation] = '_LP_'
+        elif args.safe_annotation in consensus[input_id]:
+          classes_[annotation] = '_LS_'
     classes[input_id] = classes_
 
-  logger.info("Classes computed.")
+  logger.info("Classes assigned.")
   return classes
 
 
-def compute_totals(input_ids, classes):
+def compute_totals(args, input_ids, classes):
   ''' Compute total number of inputs for each class '''
 
-  totals = {'_LP_': 0, '_LN_': 0, '_LS_': 0}
+  totals = {}
 
-  for input_id in input_ids:
-    if input_id in classes:
-      if '_LP_' in classes[input_id]:
-        totals['_LP_'] += 1
-      if '_LN_' in classes[input_id]:
-        totals['_LN_'] += 1
-      if '_LS_' in classes[input_id]:
-        totals['_LS_'] += 1
+  # For every category (annotation)
+  for annotation in args.positive_annotations:
+    totals_ = {'_LP_': 0, '_LN_': 0, '_LS_': 0}
+
+    for input_id in input_ids:
+      if input_id in classes:
+        if '_LP_' in classes[input_id][annotation]:
+          totals_['_LP_'] += 1
+        if '_LN_' in classes[input_id][annotation]:
+          totals_['_LN_'] += 1
+        if '_LS_' in classes[input_id][annotation]:
+          totals_['_LS_'] += 1
+    totals[annotation] = totals_
 
   logger.info("Totals computed.")
   return totals
   
 
-def plot_results(input_count, not_annotated_count, no_consensus_count, totals):
+def plot_results(args, input_count, not_annotated_count, no_consensus_count, totals):
     ''' Print results in the console '''
     
     print("\n*******************************************")
     print("Retrieved: {} ".format(input_count))
     print("Not annotated: {} | No consensus: {}".format(not_annotated_count, no_consensus_count))
-    print("Positives: {} | Negatives: {} | Safe: {}".format(totals['_LP_'], totals['_LN_'], totals['_LS_']))
+
+    # Print total count for every category (annotation)
+    for annotation in args.positive_annotations:
+      print("{} --- Positives: {} | Negatives: {} | Safe: {}".
+            format(annotation, totals[annotation]['_LP_'], totals[annotation]['_LN_'], totals[annotation]['_LS_']))
+
     print("*******************************************\n")
     
 
@@ -293,7 +306,7 @@ def save_data(args, to_save, data, name):
   ''' Dump provided data to a json file '''
 
   if to_save:
-    with open("{}/{}_{}_{}.json".format(args.out_path, 
+    with open("{}/{}/{}_{}_{}.json".format(args.out_path, name, 
                                         args.app_name, 
                                         args.experiment_name.replace(' ', '-'),
                                         name), 'w') as f:
@@ -306,8 +319,6 @@ def main(args, metadata):
 
   # Get input ids
   input_ids, input_count = get_input_ids(metadata)
-  # Save metadata to re-use later if needed
-  save_data(args, args.save_input_meta, input_ids, 'input_metadata')
 
   # Get annotations for every id together with their aggregations
   annotations, annotations_meta = get_annotations(metadata, input_ids)
@@ -317,13 +328,12 @@ def main(args, metadata):
   consensus, no_consensus_count, conflict_ids = compute_consensus(args, input_ids, aggregated_annotations)
 
   # Compute results
-  classes = compute_classes(args, input_ids, consensus)
+  classes = assign_classes(args, input_ids, consensus)
   totals = compute_totals(input_ids, classes)
 
   # Plot statistics using computed values
   plot_results(input_count, not_annotated_count, no_consensus_count, totals) 
 
-  # Get and save fails
   if conflict_ids:
     conflicts = get_conflicting_annotations(input_ids, conflict_ids, annotations_meta, consensus)
     save_data(args, args.save_conflicts, conflicts, 'conflicts')
@@ -334,16 +344,15 @@ def main(args, metadata):
 if __name__ == '__main__':  
   parser = argparse.ArgumentParser(description="Run tracking.")
   parser.add_argument('--app_name',
-                      default='ENG-Batch1',
+                      default='',
                       help="Name of the app in Clarifai UI.")
+  parser.add_argument('--group',
+                      default='Hate_Speech',
+                      choices={'Hate_Speech', 'Group_1'},
+                      help="Name of the group.")
   parser.add_argument('--api_key',
-                      default='a03cdd0f5d9d436dbc7188099051c998',
+                      default='',
                       help="API key to the required application.")                     
-  parser.add_argument('--experiment', 
-                      default=1, 
-                      choices={1, 2, 3, 4},
-                      type=int, 
-                      help="Which experiment to analyize. Depends on the app.")
   parser.add_argument('--consensus_count',
                       default=3,
                       type=int,
@@ -351,21 +360,14 @@ if __name__ == '__main__':
   parser.add_argument('--broad_consensus',
                       default=True,
                       type=lambda x: (str(x).lower() == 'true'),
-                      help="Attempt to allow for a broad consensus (i.e. multiple hate speech labels all pool to hate speech.")
-  parser.add_argument('--ground_truth', 
-                      default='/Users/olgadergachyova/work/ias/clarifai-python-grpc/ias/annotation/input/ENG_ground_truth.csv', 
-                      help="Path to csv file with ground truth.")                    
+                      help="Attempt to allow for a broad consensus (i.e. multiple hate speech labels all pool to hate speech.")                
   parser.add_argument('--out_path', 
-                      default='/Users/olgadergachyova/work/ias/clarifai-python-grpc/ias/annotation/output', 
+                      default='', 
                       help="Path to general output directory for this script.")
-  parser.add_argument('--save_input_meta',
+  parser.add_argument('--save_annotations',
                       default=False,
                       type=lambda x: (str(x).lower() == 'true'),
-                      help="Save input metadata in file or not.")
-  parser.add_argument('--save_false_annotations',
-                      default=False,
-                      type=lambda x: (str(x).lower() == 'true'),
-                      help="Save information about false annotations inputs in file or not.")
+                      help="Save annotations in csv file or not.")
   parser.add_argument('--save_conflicts',
                       default=False,
                       type=lambda x: (str(x).lower() == 'true'),
@@ -375,36 +377,12 @@ if __name__ == '__main__':
 
   metadata = (('authorization', 'Key {}'.format(args.api_key)),)
 
-  if args.experiment == 1:
-    # Experiment 1
-    args.experiment_name = 'Hate Speech'
-    args.positive_gt = 'hate_speech'
-    args.safe_gt = 'safe'
-    args.positive_annotation = '2-HB'
+  if args.group == 'Hate_Speech':
+    args.positive_annotations = ['2-HB']
     args.safe_annotation = '2-not-hate'
 
-  elif args.experiment == 2:
-    # Experiment 2
-    args.experiment_name = 'AD'
-    args.positive_gt = 'adult_&_explicit_sexual_content'
-    args.safe_gt = 'safe'
-    args.positive_annotation = '2-AD'
-    args.safe_annotation = '2-none-of-the-above'
-
-  elif args.experiment == 3:
-    # Experiment 3
-    args.experiment_name = 'OP'
-    args.positive_gt = 'obscenity_&_profanity'
-    args.safe_gt = 'safe'
-    args.positive_annotation = '2-OP'
-    args.safe_annotation = '2-none-of-the-above'
-
-  elif args.experiment == 4:
-    # Experiment 4
-    args.experiment_name = 'ID'
-    args.positive_gt = 'illegal_drugs/tobacco/e-cigarettes/vaping/alcohol'
-    args.safe_gt = 'safe'
-    args.positive_annotation = '2-ID'
+  elif args.group == 'Group_1':
+    args.positive_annotations = ['2-AD', '2-OP', '2-ID']
     args.safe_annotation = '2-none-of-the-above'
 
   main(args, metadata)
