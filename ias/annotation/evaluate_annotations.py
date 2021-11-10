@@ -195,6 +195,7 @@ def aggregate_annotations(args, input_ids, annotations):
   not_annotated_count = 0
 
   for input_id in input_ids:
+    # Aggregate
     aggregation = {a:annotations[input_id].count(a) for a in annotations[input_id]}
     if not aggregation:
         not_annotated_count += 1
@@ -522,11 +523,11 @@ if __name__ == '__main__':
                       type=lambda x: (str(x).lower() == 'true'),
                       help="Save input metadata in file or not.")
   parser.add_argument('--save_false_annotations',
-                      default=True,
+                      default=False,
                       type=lambda x: (str(x).lower() == 'true'),
                       help="Save information about false annotations inputs in file or not.")
   parser.add_argument('--save_conflicts',
-                      default=True,
+                      default=False,
                       type=lambda x: (str(x).lower() == 'true'),
                       help="Save information about annotations with conflicting consensus.")
 
