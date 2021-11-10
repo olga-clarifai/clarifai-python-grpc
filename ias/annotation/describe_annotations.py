@@ -47,7 +47,7 @@ def get_input_ids(metadata):
   
   logger.info("Input ids fetched. Number of fetched inputs: {}".format(len(input_ids)))
 
-  # ------ DEBUG CODE
+  # # ------ DEBUG CODE
   # input_ids_ = {}
   # for id in list(input_ids.keys())[200:250]:
   #   input_ids_[id] = input_ids[id]
@@ -75,7 +75,7 @@ def get_annotations(args, metadata, input_ids):
     list_annotations_response = stub.ListAnnotations(
                                 service_pb2.ListAnnotationsRequest(
                                 input_ids=[input_id], 
-                                per_page=30,
+                                per_page=35,
                                 list_all_annotations=True
                                 ),
       metadata=metadata
@@ -139,7 +139,7 @@ def get_annotations(args, metadata, input_ids):
 
   logger.info("Annotations fetched")
   logger.info("\tMaximum number of annotation entries per input: {}".format(annotation_nb_max))
-  logger.info("\tNumber of annotated inputs with duplicates: {}".format(duplicate_count))
+  # logger.info("\tNumber of annotated inputs with duplicates: {}".format(duplicate_count))
 
   # # ------ DEBUG CODE
   # # Print duplicates
@@ -271,64 +271,82 @@ def compute_distribution(annotations_meta):
   ''' Compute number of occurrences for each label sub-category '''
 
   # Number of '1-' and '2-' duplicates
-  duplicates_count_1, duplicates_count_2 = 0, 0 
-
-  # Dictionary of all annotations with number of their occurrences
-  annotations_distribution = {}
+  duplicates_count = {'1-': 0, '2-': 0}
+  # Dictionary of all labels with number of their occurrences
+  labels_count = {'1-': {}, '2-': {}}
 
   for meta in annotations_meta.values():
 
-    # Count all annotations
-    annotations = [m['concept'] for m in meta]
-    for annotation in annotations:
-      if annotation in annotations_distribution:
-        annotations_distribution[annotation] += 1
-      else:
-        annotations_distribution[annotation] = 1
+    # Count all labels
+    labels = [m['concept'] for m in meta]
+    for label in labels:
+      if '1-' in label:
+        labels_count['1-'][label] = labels_count['1-'][label] + 1 if label in labels_count['1-'] else 1
+      elif '2-' in label:
+        labels_count['2-'][label] = labels_count['2-'][label] + 1 if label in labels_count['2-'] else 1
 
     # Change format to {user: [list of labels]}
-    user_annotations = {}
+    user_labels = {}
     for m in meta:
-      if m['userId'] in user_annotations:
-        user_annotations[m['userId']].append(m['concept'])
+      if m['userId'] in user_labels:
+        user_labels[m['userId']].append(m['concept'])
       else:
-        user_annotations[m['userId']] = [m['concept']]
+        user_labels[m['userId']] = [m['concept']]
 
     # Compute number of '1-' duplicates
-    for user, annotation in user_annotations.items():
-      annotation_ = list(set([a[0:4] for a in annotation if '1-' in a]))
-      duplicates_count_1 += len(annotation) - len(annotation_)
+    for user, label in user_labels.items():
+      tmp1 = [a for a in label if '1-' in a]
+      tmp2 = list(set([a[0:4] for a in label if '1-' in a]))
+      duplicates_count['1-'] += len(tmp1) - len(tmp2)
 
     # Compute number of '2-' duplicates
-    for user, annotation in user_annotations.items():
-      annotation_ = list(set([a[0:4] for a in annotation if '2-' in a]))
-      duplicates_count_2 += len(annotation) - len(annotation_)
+    for user, label in user_labels.items():
+      tmp1 = [a for a in label if '2-' in a]
+      tmp2 = list(set([a[0:4] for a in label if '2-' in a]))
+      duplicates_count['2-'] += len(tmp1) - len(tmp2)
 
-  return annotations_distribution, duplicates_count_1, duplicates_count_2
+  # Total number of '1-' labels and '2-' labels 
+  labels_total = {'1-': sum([v for k, v in labels_count['1-'].items() if '1-' in k]),
+                  '2-': sum([v for k, v in labels_count['2-'].items() if '2-' in k])}
+
+  # Percentage distribution of labels
+  labels_distr = {'1-': {k: (v*100.0)/labels_total['1-'] for k, v in labels_count['1-'].items() if '1-' in k},
+                  '2-': {k: (v*100.0)/labels_total['2-'] for k, v in labels_count['2-'].items() if '2-' in k}}
+
+  return labels_count, labels_distr, labels_total, duplicates_count
 
     
 def plot_results(args, input_count, not_annotated_count, no_consensus_count, totals,
-                 annotations_distribution, duplicates_count_1, duplicates_count_2, conflict_count):
+                 labels_count, labels_distr, labels_total, duplicates_count, conflict_count):
     ''' Print results in the console '''
     
     print("\n**************************************************\n")
     print("Retrieved: {} ".format(input_count))
     print("Not annotated: {} | No consensus: {}".format(not_annotated_count, no_consensus_count))
-    print("Number of conflicts: {}".format(conflict_count))
-    print("Number of duplicates '1-' : {} | '2-': {}".
-          format(duplicates_count_1, duplicates_count_2))
-    print("\n--------------------------------------------------\n")
+    print("In conflict: {}".format(conflict_count))
+    print("\n--------------------------------------------------")
 
     # Print total count for every category (annotation)
     for annotation in args.positive_annotations:
       print("{} --- Positives: {} | Negatives: {} | Safe: {}".
             format(annotation, totals[annotation]['_LP_'], totals[annotation]['_LN_'], totals[annotation]['_LS_']))
+    print("--------------------------------------------------\n")
 
-    print("\n--------------------------------------------------\n")
+    # Print distribution of '1-' labels
+    for label in sorted(labels_distr['1-'].keys()):
+      print("{:.2f} % ({})\t {}".format(labels_distr['1-'][label], labels_count['1-'][label], label))
+    print("--------------------------------------------------")
+    print("Total number: {} | Duplicates: {:.2f} % ({})".
+          format(labels_total['1-'], (duplicates_count['1-']*100)/labels_total['1-'], duplicates_count['1-']))
 
-    # Print distribution of annotations
-    for annotation in sorted(annotations_distribution.keys()):
-      print("{}\t {}".format(annotations_distribution[annotation], annotation))
+    print("\n")   
+
+    # Print distribution of '2-' labels
+    for label in sorted(labels_distr['2-'].keys()):
+      print("{:.2f} % ({})\t {}".format(labels_distr['2-'][label], labels_count['2-'][label], label))
+    print("--------------------------------------------------")
+    print("Total number: {} | Duplicates: {:.2f} % ({})".
+          format(labels_total['2-'], (duplicates_count['2-']*100)/labels_total['2-'], duplicates_count['2-']))   
 
     print("\n**************************************************\n")
     
@@ -387,11 +405,11 @@ def main(args, metadata):
   totals = compute_totals(args, input_ids, classes)
 
   # Compute distirbution of different annotations
-  annotations_distribution, duplicates_count_1, duplicates_count_2 = compute_distribution(annotations_meta)
+  labels_count, labels_distr, labels_total, duplicates_count = compute_distribution(annotations_meta)
 
   # Plot statistics using computed values
   plot_results(args, input_count, not_annotated_count, no_consensus_count, totals,
-               annotations_distribution, duplicates_count_1, duplicates_count_2, len(conflict_ids))
+               labels_count, labels_distr, labels_total, duplicates_count, len(conflict_ids))
 
   # Save annotations in csv file
   save_annotations_csv(args, input_ids, classes, 'annotations')
@@ -427,7 +445,7 @@ if __name__ == '__main__':
                       default='', 
                       help="Path to general output directory for this script.")
   parser.add_argument('--save_annotations',
-                      default=False,
+                      default=True,
                       type=lambda x: (str(x).lower() == 'true'),
                       help="Save annotations in csv file or not.")
   parser.add_argument('--save_conflicts',

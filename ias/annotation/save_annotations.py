@@ -45,7 +45,7 @@ def _from_input_to_output(input_id, input, classes):
     
     meta = [input_id, input['id'], input['description'], input['url']]
     labels = _from_classes_to_labels(classes)
-    # return meta + labels
+    return meta + labels
 
 
 def _from_classes_to_labels(classes):
