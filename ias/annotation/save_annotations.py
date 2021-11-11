@@ -1,3 +1,4 @@
+import os
 import csv
 import logging
 
@@ -6,7 +7,7 @@ LABELS = {'2-AD': 'adult_&_explicit_sexual_content',
           '2-AA': 'arms_&_ammunition',
           '2-CR': 'crime',
           '2-DM': 'death,_injury_or_military_conflict',
-          '2-OP': 'online_piracy',
+          '2-PP': 'online_piracy',
           '2-HB': 'hate_speech',
           '2-OP': 'obscenity_&_profanity',
           '2-ID': 'illegal_drugs/tobacco/e-cigarettes/vaping/alcohol',
@@ -24,10 +25,16 @@ def save_annotations_csv(args, input_ids, classes, name):
     ''' Dump annotations to a csv file '''
     
     if args.save_annotations:
-        path = "{}/{}/{}_{}_{}.csv".format(args.out_path, name, args.app_name, 
-                                            args.group, name)
+        # Create output dir if needed
+        path = os.path.join(args.out_path, name)
+        if not os.path.exists(path):
+            os.mkdir(path)
 
-        with open(path, 'w', encoding='UTF8', newline='') as f:
+        # Set file path
+        file_path = os.path.join(path, "{}_{}_{}.csv".format(args.app_name, args.group, name))
+
+        # Write to file
+        with open(file_path, 'w', encoding='UTF8', newline='') as f:
 
             writer = csv.writer(f)
             writer.writerow(HEADER)

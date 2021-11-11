@@ -381,10 +381,16 @@ def save_data(args, to_save, data, name):
   ''' Dump provided data to a json file '''
 
   if to_save:
-    path = "{}/{}/{}_{}_{}.json".format(args.out_path, name, args.app_name, 
-                                        args.group, name)
+    # Create output dir if needed
+    path = os.path.join(args.out_path, name)
+    if not os.path.exists(path):
+      os.mkdir(path)
 
-    with open(path, 'w') as f:
+    # Set file path
+    file_path = os.path.join(path, "{}_{}_{}.json".format(args.app_name, args.group, name))
+
+    # Write to file
+    with open(file_path, 'w') as f:
       json.dump(data, f)
 
 
