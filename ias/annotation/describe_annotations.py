@@ -137,8 +137,8 @@ def get_annotations(args, metadata, input_ids):
     # Update max count variable
     annotation_nb_max = max(annotation_nb_max, len(list_annotations_response.annotations))
 
-  logger.info("Annotations fetched")
-  logger.info("\tMaximum number of annotation entries per input: {}".format(annotation_nb_max))
+  logger.info("Annotations fetched.")
+  # logger.info("\tMaximum number of annotation entries per input: {}".format(annotation_nb_max))
   # logger.info("\tNumber of annotated inputs with duplicates: {}".format(duplicate_count))
 
   # # ------ DEBUG CODE
@@ -313,6 +313,8 @@ def compute_distribution(annotations_meta):
   labels_distr = {'1-': {k: (v*100.0)/labels_total['1-'] for k, v in labels_count['1-'].items() if '1-' in k},
                   '2-': {k: (v*100.0)/labels_total['2-'] for k, v in labels_count['2-'].items() if '2-' in k}}
 
+  logger.info("Distributiuons computed.")
+
   return labels_count, labels_distr, labels_total, duplicates_count
 
     
@@ -449,7 +451,7 @@ if __name__ == '__main__':
                       type=lambda x: (str(x).lower() == 'true'),
                       help="Save annotations in csv file or not.")
   parser.add_argument('--save_conflicts',
-                      default=False,
+                      default=True,
                       type=lambda x: (str(x).lower() == 'true'),
                       help="Save information about annotations with conflicting consensus.")
 
