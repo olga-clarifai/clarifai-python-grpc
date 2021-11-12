@@ -16,7 +16,38 @@ GT_LABELS = ['adult_&_explicit_sexual_content',
 GT_LABELS_ = [label + '_y' for label in GT_LABELS]
 
 
-def load_from_csv(input_ids, csv_path, safe_gt):
+def load_all_from_csv(csv_path, safe_gt_label):
+    '''Load ground truth for videos selection/upload. Format {video_id: gt_labels}.'''
+
+    # Extract ground truth labels for every input in the file and link it to video id
+    ground_truth = {}
+    with open(csv_path, 'r') as f:
+        reader = csv.DictReader(f)
+        for line in reader:
+            line = {k.lower(): v for k, v in line.items()}
+
+            # Extract ground truth keys
+            gt_labels = []
+            for key in line:
+                if _clean_key(key) is not None:
+                    # Catch exceptions to avoid errors related to incorrect ground truth entries
+                    try:
+                        if int(line[key]):
+                            gt_labels.append(_clean_key(key))
+                    except:
+                        logging.warning('\t Incorrect ground truth for {}. Input ignored.'.format(line['video_id']))
+                        break
+            if not gt_labels:
+                gt_labels = [safe_gt_label]
+            ground_truth[line['video_id']] = gt_labels
+
+    logging.info("Ground truth was extracted from csv for all inputs.")
+
+    return ground_truth
+
+
+def load_from_csv(input_ids, csv_path, safe_gt_label):
+    '''Load ground truth for pilots evaluation. Format {input_id: gt_labels}.'''
 
     # Map video ids to their input hash
     id_to_hash = {}
@@ -39,7 +70,7 @@ def load_from_csv(input_ids, csv_path, safe_gt):
             elif line['video_id'] in sfl_to_hash:
                 hash = sfl_to_hash[line['video_id']]
 
-            # If exists, extract gt keys
+            # If exists, extract ground truth labels
             if hash:
                 gt_labels = []
                 for key in line:
@@ -52,7 +83,7 @@ def load_from_csv(input_ids, csv_path, safe_gt):
                             logging.warning('\t Incorrect ground truth for {}. Input ignored.'.format(line['video_id']))
                             break
                 if not gt_labels:
-                    gt_labels = [safe_gt]
+                    gt_labels = [safe_gt_label]
                 ground_truth[hash] = gt_labels
     
     # Count number of inputs with no ground truth
@@ -67,6 +98,7 @@ def load_from_csv(input_ids, csv_path, safe_gt):
         
 
 def load_from_metadata(input_ids):
+    '''Load ground truth from portal'''
 
     ground_truth = {}
 
