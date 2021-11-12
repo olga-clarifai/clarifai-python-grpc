@@ -34,38 +34,22 @@ def load_selected_video_ids(selected_videos_path):
   '''Load a list of selected video ids to upload'''
 
   with open(selected_videos_path, 'r') as f:
-    data = json.load(f)
-
-  # Put ids from all categories together
-  video_ids = {}
-  for category, video_list in data:
-    for video_id in video_list:
-      video_ids[video_id] = category
+    video_ids = json.load(f)
 
   logging.info("List of selected videos loaded: {} videos to upload".format(len(video_ids)))  
   return video_ids
 
 
-def extract_videos_meta(video_ids, meta_file, ground_truth=None):
+def update_videos_meta(video_ids, ground_truth=None):
     '''Extract metadata for videos that will be uploaded'''
 
-    # TODO: make it work without ground truth
-    videos_meta = {}
-    with open(meta_file, 'r') as f:
-        reader = csv.DictReader(f)
-        for line in reader:
-            line = {k.lower(): v for k, v in line.items()}
+    for video_id in video_ids:
+      # Update metadata with ground truth labels if available
+      if ground_truth is not None:
+        if video_id in ground_truth:
+          video_ids[video_id]['ground_truth'] = ground_truth[video_id]
 
-            if line['video_id'] in video_ids:
-              # Get ground_truth if available
-              gt = ground_truth['video_id'] if ground_truth is not None and line['video_id'] in ground_truth else None
-
-              # Add metadata for current input
-              videos_meta[line['video_id']] = {'video_id': line['video_id'], 'description': line['description'], 
-                                              'url': line['url'], 'ground_truth': gt}
-
-    logging.info("Metadata for videos extracted.")  
-    return videos_meta
+    return video_ids
 
 
 def upload_videos(video_ids, videos_path, videos_meta):
@@ -118,7 +102,7 @@ def main(args, metadata):
   ground_truth = load_ground_truth.load_all_from_csv(args.ground_truth, args.safe_gt_label)
 
   # Extract metadata
-  videos_meta = extract_videos_meta(video_ids, args.ground_truth, ground_truth)
+  videos_meta = update_videos_meta(video_ids, ground_truth)
 
   # Upload videos
   upload_videos(video_ids, args.videos_path, videos_meta)
