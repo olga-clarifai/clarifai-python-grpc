@@ -1,118 +1,145 @@
-##############################
-# John's code
-##############################
-
-import csv
-import random
+import argparse
+import logging
+import os
 import json
 
-from os import listdir
-from os.path import isfile, join
-onlyfiles = [f for f in listdir("english/") if isfile(join("english/", f))]
+# Import in the Clarifai gRPC based objects needed
+from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
+from clarifai_grpc.grpc.api import resources_pb2, service_pb2, service_pb2_grpc
+from clarifai_grpc.grpc.api.status import status_code_pb2
+from google.protobuf.json_format import MessageToDict
+from proto.clarifai.api.resources_pb2 import Video
+import load_ground_truth
 
-url_list = []
-class_list = {"safe":[]}
-lst=[]
+# Setup logging
+logging.basicConfig(format='%(asctime)s %(message)s \t')
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+# Construct the communications channel and the object stub to call requests on.
+channel = ClarifaiChannel.get_json_channel()
+stub = service_pb2_grpc.V2Stub(channel)
 
 
-with open("ground_english2.csv", "r") as f:
-  csvfile = csv.reader(f, delimiter=",")
-  i = 0
-  for row in csvfile:
-    if i == 0:
-      class_list[row[5]] = []
-      class_list[row[6]] = []
-      class_list[row[7]] = []
-      class_list[row[8]] = []
-      class_list[row[9]] = []
-      class_list[row[10]] = []
-      class_list[row[11]] = []
-      class_list[row[12]] = []
-      class_list[row[13]] = []
-      class_list[row[14]] = []
-      class_list[row[15]] = []
-      lst.append(row[5])
-      lst.append(row[6])
-      lst.append(row[7])
-      lst.append(row[8])
-      lst.append(row[9])
-      lst.append(row[10])
-      lst.append(row[11])
-      lst.append(row[12])
-      lst.append(row[13])
-      lst.append(row[14])
-      lst.append(row[15])
+def process_response(response):
+    if response.status.code != status_code_pb2.SUCCESS:
+        logger.error("There was an error with your request!")
+        logger.error("\tDescription: {}".format(response.status.description))
+        logger.error("\tDetails: {}".format(response.status.details))
+        raise Exception("Request failed, status code: " + str(response.status.code))
 
-      i = 1
-      continue
 
-    file_name = row[3].split("=")[-1] + ".mp4"
-    # print(file_name)
-    # print(onlyfiles[0])
-    if file_name in onlyfiles:
-      if row[5] == "1":
-        class_list[lst[0]].append(row[3])
-        continue
-      if row[6] == "1":
-        class_list[lst[1]].append(row[3])
-        continue
-      if row[7] == "1":
-        class_list[lst[2]].append(row[3])
-        continue
-      if row[8] == "1":
-        class_list[lst[3]].append(row[3])
-        continue
-      if row[9] == "1":
-        class_list[lst[4]].append(row[3])
-        continue
-      if row[10] == "1":
-        class_list[lst[5]].append(row[3])
-        continue
-      if row[11] == "1":
-        class_list[lst[6]].append(row[3])
-        continue
-      if row[12] == "1":
-        class_list[lst[7]].append(row[3])
-        continue
-      if row[13] == "1":
-        class_list[lst[8]].append(row[3])
-        continue
-      if row[14] == "1":
-        class_list[lst[9]].append(row[3])
-        continue
-      if row[15] == "1":
-        class_list[lst[10]].append(row[3])
-        continue
-      if row[5] == "0" and row[6] == "0" and row[7] == "0" and row[8] == "0" and row[9] == "0" and row[10] == "0" and row[11] == "0" and row[12] == "0" and row[13] == "0" and row[14] == "0" and row[15] == "0":
-        class_list["safe"].append(row[3])
-      
-with open("final_list_non_redundant.json", "w") as f:
-  json.dump(class_list, f)
-# print(class_list)
-print("-------")
-total = 0
-for cat,ent in class_list.items():
-  print("{}: {}".format(cat, len(ent)))
-  total = total + len(ent)
-print("-----")
-print("Total count: {}".format(total))
-final_list = {}
-print("-------")
-for cat, ent in class_list.items():
-  if cat == "safe":
-    l = random.sample(ent, 100)
-  elif cat == "adult_&_explicit_sexual_content":
-    l = random.sample(ent, 100)
-  elif cat == "obscenity_&_profanity":
-    l = random.sample(ent, 100)
-  elif cat == "illegal_drugs/tobacco/e-cigarettes/vaping/alcohol":
-    l = random.sample(ent, 100)
-  else:
-    if len(ent) >= 50:
-      l = random.sample(ent, 50)
-    else:
-      l = ent
-  final_list[cat] = l
+def load_meta(videos_meta_path):
+    ''' Load information about videos '''
 
-  with open("experiment_group1.json", "w") as f:
-    json.dump(final_list, f)
+    # TODO: make a general load (for now from ground truth)
+    videos_meta = load_ground_truth.load_all_from_csv(videos_meta_path, 'safe')
+    
+    logger.info("Number of initially loaded videos: {}".format(len(videos_meta)))
+    return videos_meta
+
+
+def get_existing_video_ids(metadata):
+    ''' Get list of all inputs that were already uploaded '''
+
+    existing_video_ids = []
+    
+    # Get inputs and extract video ids
+    for page in range(1,5):
+        list_inputs_response = stub.ListInputs(
+                            service_pb2.ListInputsRequest(page=page, per_page=1000),
+                            metadata=metadata
+        )
+        process_response(list_inputs_response)
+
+        for input_object in list_inputs_response.inputs:
+            json_obj = MessageToDict(input_object)
+            video_id = json_obj['data']['metadata']['id']
+            #video_id = json_obj['data']['metadata']['source-file-line']
+            existing_video_ids.append(video_id)
+
+    logger.info("Number of fetched videos: {}".format(len(existing_video_ids)))
+    return existing_video_ids
+
+
+def select_videos(videos_meta):
+    ''' Select specific videos according to criteria '''
+
+    # TODO: write actual code
+    video_ids = videos_meta
+
+    logger.info("Selected {} videos".format(len(video_ids)))
+    return video_ids
+
+
+def remove_existing(video_ids, existing_video_ids):
+    ''' Remove from the list ids of videos that are already uploaded '''
+
+    final_video_ids = {}
+    for video_id in video_ids:
+        if not video_id in existing_video_ids:
+            final_video_ids[video_id] = video_ids[video_id]
+    
+    logger.info("Total number of selected videos after removing existing ones: {}".format(len(final_video_ids)))
+    return final_video_ids
+
+
+def save_data(args, to_save, data, name):
+    ''' Dump provided data to a json file '''
+
+    if to_save:
+        # Create output dir if needed
+        path = os.path.join(args.out_path, name)
+        if not os.path.exists(path):
+            os.mkdir(path)
+
+        # Set file path
+        file_path = os.path.join(path, "{}_{}_{}.json".format(args.app_name, name))
+
+        # Write to file
+        with open(file_path, 'w') as f:
+            json.dump(data, f)
+
+
+def main(args, metadata):
+
+    # Load videos metadata
+    videos_meta = load_meta(args.videos_meta)
+    
+    # Select videos according to criteria
+    selected_video_ids = select_videos(videos_meta)
+
+    # Fetch ids of videos that were already uploaded
+    existing_video_ids = get_existing_video_ids(metadata)
+
+    # Make final selecting by exclusing already existing ones
+    selected_video_ids = remove_existing(selected_video_ids, existing_video_ids)
+
+    # Save selected ids to a file
+    save_data(args, args.save_selected, selected_video_ids, 'selected_videos')
+
+
+if __name__ == '__main__':  
+    parser = argparse.ArgumentParser(description="Download videos.")
+    parser.add_argument('--app_name',
+                        default='',
+                        help="Name of the pplication.") 
+    parser.add_argument('--api_key',
+                        default='',
+                        help="API key to the required application.")  
+    parser.add_argument('--videos_meta', 
+                        default='', 
+                        help="Path to csv file with ground truth.")       
+    parser.add_argument('--out_path',
+                        default='',
+                        help="Path to output file for storing video ids.")     
+    parser.add_argument('--save_selected',
+                        default=True,
+                        type=lambda x: (str(x).lower() == 'true'),
+                        help="Save ids of selected videos to a json file.")
+
+    args = parser.parse_args()
+
+    metadata = (('authorization', 'Key {}'.format(args.api_key)),)
+
+    main(args, metadata)

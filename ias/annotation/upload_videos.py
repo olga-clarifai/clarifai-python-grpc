@@ -17,7 +17,6 @@ logging.basicConfig(format='%(asctime)s %(message)s \t')
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-
 # Construct the communications channel and the object stub to call requests on.
 channel = ClarifaiChannel.get_json_channel()
 stub = service_pb2_grpc.V2Stub(channel)
