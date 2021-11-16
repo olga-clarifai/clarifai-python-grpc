@@ -30,8 +30,7 @@ def main(args):
             # url = video_ids[video_id]['url']
             url = video_ids[video_id]['url'].replace('playsource=3&', '') # fix for dead links
             r = requests.get(url, allow_redirects=True, timeout=2.5)
-            length = int(r.headers.get('content-length'))
-            if length != 0:
+            if int(r.headers.get('content-length')) and r.headers.get('content-type') == 'video/mp4':
                 open(video_file, 'wb').write(r.content)
                 downloaded_count += 1
             else:
