@@ -53,7 +53,7 @@ def load_meta(args):
 
     # # ------ DEBUG CODE
     # video_ids_ = {}
-    # for id in list(video_ids.keys())[245:252]:
+    # for id in list(video_ids.keys())[245:270]:
     #   video_ids_[id] = video_ids[id]
     # video_ids = video_ids_
     # # ------ DEBUG CODE
@@ -65,39 +65,32 @@ def load_meta(args):
 def check_links_with_ground_truth(video_ids):
     ''' Sorts videos into dead or live link lists by label category '''
 
-    # prepare variables
+    # Prepare variables
     live_links = {label: [] for label in GT_LABELS}
     dead_links = {label: [] for label in GT_LABELS}
     dead_link_count = 0
 
     for i, video_id in enumerate(video_ids):
+        url = video_ids[video_id]['url'].replace('playsource=3&', '') # fix from TT
+        working_url = False
 
-        url = video_ids[video_id]['url']
-        url_ = url.replace('playsource=3&', '') # fix from TT
-        working_url = None
-
-        # Try to make a request with original url
+        # Make a request
         try:
             r = requests.get(url, allow_redirects=True, timeout=5)
-            if int(r.headers.get('content-length')):
-                working_url = url
+            if int(r.headers.get('content-length')) and r.headers.get('content-type') == 'video/mp4':
+                working_url = True
         except:
-            # Try to make a request with fixed url
-            try:
-                r = requests.get(url_, allow_redirects=True, timeout=5)
-                if int(r.headers.get('content-length')):
-                    working_url = url_
-            except:
-                dead_link_count += 1
-        
-        if working_url is not None:
+            dead_link_count += 1
+
+        # Assign to appropriate list according to request's results
+        if working_url:
             for label in video_ids[video_id]['ground_truth']:
-                live_links[label].append({'video_id': video_id, 'url': working_url})
+                live_links[label].append({'video_id': video_id, 'url': url})
         else:
             for label in video_ids[video_id]['ground_truth']:
-                dead_links[label].append({'video_id': video_id, 'url': url_})
+                dead_links[label].append({'video_id': video_id, 'url': url})
 
-        # progress bar
+        # Progress bar
         show_progress_bar(i+1, len(video_ids))
 
     logging.info("Number of dead links: {}".format(dead_link_count)) 
