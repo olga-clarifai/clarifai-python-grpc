@@ -44,7 +44,10 @@ def load_meta(args):
             line = {k.lower(): v for k, v in line.items()}
 
             # Extract meta
-            meta = {'video_id': line['video_id'], 'description': line['description'], 'url': line['url']}
+            try: # ENG
+                meta = {'video_id': line['video_id'], 'description': line['video_description'], 'url': line['video_url']}
+            except: # FR/DE
+                meta = {'video_id': line['video_id'], 'description': line['description'], 'url': line['url']}
 
             # Add ground truth if available
             if args.has_gt and meta['video_id'] in ground_truth:
