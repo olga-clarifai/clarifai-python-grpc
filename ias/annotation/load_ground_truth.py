@@ -26,8 +26,10 @@ def load_all_from_csv(csv_path, safe_gt_label):
         for line in reader:
             line = {k.lower(): v for k, v in line.items()}
 
-            # Extract ground truth keys
             gt_labels = []
+            correct = True
+
+            # Extract labels
             for key in line:
                 if _clean_key(key) is not None:
                     # Catch exceptions to avoid errors related to incorrect ground truth entries
@@ -36,12 +38,16 @@ def load_all_from_csv(csv_path, safe_gt_label):
                             gt_labels.append(_clean_key(key))
                     except:
                         logging.warning('\t Incorrect ground truth for {}. Input ignored.'.format(line['video_id']))
+                        correct = False
                         break
             if not gt_labels:
                 gt_labels = [safe_gt_label]
-            ground_truth[line['video_id']] = gt_labels
 
-    logging.info("Ground truth was extracted from csv for all inputs.")
+            # Check if ground truth is all good
+            if correct:
+                ground_truth[line['video_id']] = gt_labels
+
+    logging.info("Ground truth was extracted from csv for {} inputs.".format(len(ground_truth)))
 
     return ground_truth
 

@@ -92,7 +92,7 @@ def get_annotations(args, metadata, input_ids):
       # Check for concepts in data but also time segments
       concepts = []
       if 'concepts' in ao['data'] and len(ao['data']['concepts'])>0:
-        concepts.append(ao['data']['concepts'][0]['name']) # TODO: check if id always = name
+        concepts.append(ao['data']['concepts'][0]['name'])
       elif 'timeSegments' in ao['data'] and 'concepts' in ao['data']['timeSegments'][0]['data'] and \
            len(ao['data']['timeSegments'][0]['data'])>0:
         concepts.append(ao['data']['timeSegments'][0]['data']['concepts'][0]['name'])

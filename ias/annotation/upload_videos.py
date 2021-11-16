@@ -2,7 +2,6 @@ import os
 import json
 import argparse
 import logging
-import csv
 
 # Import in the Clarifai gRPC based objects needed
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
@@ -10,7 +9,6 @@ from clarifai_grpc.grpc.api import resources_pb2, service_pb2, service_pb2_grpc
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
 from google.protobuf.struct_pb2 import Struct
-import load_ground_truth
 
 # Setup logging
 logging.basicConfig(format='%(asctime)s %(message)s \t')
@@ -39,19 +37,7 @@ def load_selected_video_ids(selected_videos_path):
   return video_ids
 
 
-def update_videos_meta(video_ids, ground_truth=None):
-    '''Extract metadata for videos that will be uploaded'''
-
-    for video_id in video_ids:
-      # Update metadata with ground truth labels if available
-      if ground_truth is not None:
-        if video_id in ground_truth:
-          video_ids[video_id]['ground_truth'] = ground_truth[video_id]
-
-    return video_ids
-
-
-def upload_videos(video_ids, videos_path, videos_meta):
+def upload_videos(video_ids, videos_path):
     '''Upload videos from the list'''
 
     # List to keep tack of failed upload
@@ -60,7 +46,7 @@ def upload_videos(video_ids, videos_path, videos_meta):
     for video_id in video_ids:
       # Set metadata
       input_meta = Struct()
-      input_meta.update(videos_meta[video_id])
+      input_meta.update(video_ids[video_id])
 
       video_file = os.path.join(videos_path, video_id + '.mp4')
       with open(video_file, "rb") as f:
@@ -97,14 +83,8 @@ def main(args, metadata):
   # Load ids of videos selected for the upload
   video_ids = load_selected_video_ids(args.selected_videos)
 
-  # Load ground truth
-  ground_truth = load_ground_truth.load_all_from_csv(args.ground_truth, args.safe_gt_label)
-
-  # Extract metadata
-  videos_meta = update_videos_meta(video_ids, ground_truth)
-
   # Upload videos
-  upload_videos(video_ids, args.videos_path, videos_meta)
+  upload_videos(video_ids, args.videos)
 
 
 if __name__ == '__main__':  
@@ -115,9 +95,6 @@ if __name__ == '__main__':
   parser.add_argument('--videos',
                       default='',
                       help="Path to folder with videos to load.")                
-  parser.add_argument('--ground_truth', 
-                      default='', 
-                      help="Path to csv file with ground truth.")  
   parser.add_argument('--selected_videos', 
                       default='', 
                       help="Path to json file with video ids of videos selected for upload.") 
