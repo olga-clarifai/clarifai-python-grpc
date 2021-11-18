@@ -5,12 +5,13 @@ import csv
 import requests
 import utils
 
+import ground_truth as gt
+
 # Import in the Clarifai gRPC based objects needed
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2, service_pb2_grpc
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
-import load_ground_truth
 
 # Setup logging
 logger = utils.setup_logging()
@@ -19,9 +20,7 @@ logger = utils.setup_logging()
 channel = ClarifaiChannel.get_json_channel()
 stub = service_pb2_grpc.V2Stub(channel)
 
-GT_LABELS = load_ground_truth.GT_LABELS + ['safe']
-GT_LABELS_IDX = {label: idx for label, idx in zip(load_ground_truth.GT_LABELS , 
-                                                  range(len(load_ground_truth.GT_LABELS )))}
+GT_LABELS = gt.GT_LABELS + ['safe']
 
 
 def load_meta(args):
@@ -29,7 +28,7 @@ def load_meta(args):
 
     # Load ground truth if available
     if args.has_gt:
-        ground_truth = load_ground_truth.load_all_from_csv(args.videos_meta, 'safe')
+        ground_truth = gt.load_all_from_csv(args.videos_meta, 'safe')
 
     # Load the rest of meta
     video_ids = {}
@@ -62,14 +61,14 @@ def load_meta(args):
     return video_ids
 
 
-def check_links_with_ground_truth(video_ids):
+def check_links(video_ids, has_gt):
     ''' Sorts videos into dead or live link lists by label category '''
 
     # Prepare variables
-    live_links = {label: [] for label in GT_LABELS}
-    dead_links = {label: [] for label in GT_LABELS}
-    live_video_ids, dead_video_ids = {}, {}
     dead_link_count = 0
+    live_video_ids, dead_video_ids = {}, {}
+    live_links = {label: [] for label in GT_LABELS} if has_gt else None
+    dead_links = {label: [] for label in GT_LABELS} if has_gt else None
 
     for i, video_id in enumerate(video_ids):
         url = video_ids[video_id]['url'].replace('playsource=3&', '') # fix from TT
@@ -88,19 +87,20 @@ def check_links_with_ground_truth(video_ids):
             dead_link_count += 1
             dead_video_ids[video_id] = video_ids[video_id]
 
-        # Assign to appropriate list according to request's results
-        if working_url:
-            for label in video_ids[video_id]['ground_truth']:
-                live_links[label].append({'video_id': video_id, 'url': url})
-        else:
-            for label in video_ids[video_id]['ground_truth']:
-                dead_links[label].append({'video_id': video_id, 'url': url})
+        # Assign to appropriate categorized list if ground truth is available
+        if has_gt:
+            if working_url:
+                for label in video_ids[video_id]['ground_truth']:
+                    live_links[label].append({'video_id': video_id, 'url': url})
+            else:
+                for label in video_ids[video_id]['ground_truth']:
+                    dead_links[label].append({'video_id': video_id, 'url': url})
 
         # Progress bar
         utils.show_progress_bar(i+1, len(video_ids))
 
     logger.info("Number of dead links: {}".format(dead_link_count)) 
-    return live_links, dead_links, live_video_ids, dead_video_ids, dead_link_count
+    return dead_link_count, live_video_ids, dead_video_ids, live_links, dead_links
 
 
 def plot_distribution(live_links, dead_links):
@@ -117,7 +117,7 @@ def save_distribution(args, video_ids, live_links, dead_links, dead_link_count):
     ''' Save distribution of live and dead links by label category to csv file'''
 
     # Create output dir if needed
-    path = os.path.join(args.out_path, 'link_distribution')
+    path = os.path.join(args.out_path, 'links', 'link_distribution')
     if not os.path.exists(path):
         os.mkdir(path)
 
@@ -142,42 +142,45 @@ def save_distribution(args, video_ids, live_links, dead_links, dead_link_count):
     logger.info("Saved distribution to {}".format(file_path))
 
 
-def save_live_ground_truth(args, live_video_ids):
+def save_live_data(args, live_video_ids):
     ''' Dump ground truth with live urls only '''
 
-    if args.save_gt:
+    if args.save_live_data:
         # Create output dir if needed
-        path = os.path.join(args.out_path, 'live_ground_truth')
+        path = os.path.join(args.out_path, 'links', 'live_data')
         if not os.path.exists(path):
             os.mkdir(path)        
 
         # Set file path
-        file_path = os.path.join(path, "{}_{}.csv".format(args.dataset_name, 'ground_truth_live'))
+        if args.has_gt:
+            file_path = os.path.join(path, "{}_{}.csv".format(args.dataset_name, 'ground_truth_live'))
+            header = ['video_id', 'description', 'url'] + gt.GT_LABELS
+        else:
+            file_path = os.path.join(path, "{}_{}.csv".format(args.dataset_name, 'live'))
+            header = ['video_id', 'description', 'url']
 
         # Write to file
         with open(file_path, 'w', encoding='UTF8', newline='') as f:
 
             writer = csv.writer(f)
-            writer.writerow(['video_id', 'description', 'url'] + load_ground_truth.GT_LABELS)
+            writer.writerow(header)
 
-            # Get back ground truth 
+            # Write every video meta (and ground truth if available) as new row
             for video_id, meta in live_video_ids.items():
-                row_meta = [video_id, meta['description'], meta['url']]
-                row_labels = [0] * len(load_ground_truth.GT_LABELS)
-                for label in load_ground_truth.GT_LABELS:
-                    if label in meta['ground_truth']:
-                        row_labels[GT_LABELS_IDX[label]] = 1
-                writer.writerow(row_meta + row_labels)
+                row = [video_id, meta['description'], meta['url']] 
+                if args.has_gt:
+                    row += gt.get_from_meta(meta)
+                writer.writerow(row)
 
-        logger.info("Saved live ground truth to {}".format(file_path))
+        logger.info("Saved live data to {}".format(file_path))
 
 
 def save_categorized_links(args, links, name):
     ''' Save information about links in csv file '''
 
-    if args.save_links:
+    if args.save_categorized_links:
         # Create output dir if needed
-        path = os.path.join(args.out_path, 'links')
+        path = os.path.join(args.out_path, 'links', 'categorized_links')
         if not os.path.exists(path):
             os.mkdir(path)
 
@@ -205,18 +208,17 @@ def main(args):
     video_ids = load_meta(args)
 
     # Examine links and get separate lists of live and dead links
-    # TODO: make a funtion for data without ground truth
-    live_links, dead_links, live_video_ids, _ , dead_link_count = check_links_with_ground_truth(video_ids)
+    dead_link_count, live_video_ids, _, live_links, dead_links = check_links(video_ids, args.has_gt)
 
-    # Display and save distribution per label category
-    plot_distribution(live_links, dead_links)
-    save_distribution(args, video_ids, live_links, dead_links, dead_link_count)
+    # Display and save distribution and categorized links
+    if args.has_gt:
+        plot_distribution(live_links, dead_links)
+        save_distribution(args, video_ids, live_links, dead_links, dead_link_count)
+        save_categorized_links(args, live_links, 'live_links')
+        save_categorized_links(args, dead_links, 'dead_links')
 
-    # Save categorized lists of live and dead links,
-    # as well as curated ground truth
-    save_categorized_links(args, live_links, 'live_links')
-    save_categorized_links(args, dead_links, 'dead_links')
-    save_live_ground_truth(args, live_video_ids)
+    # Save curated data with live links only
+    save_live_data(args, live_video_ids)
 
 
 if __name__ == '__main__':  
@@ -234,14 +236,14 @@ if __name__ == '__main__':
     parser.add_argument('--out_path',
                         default='',
                         help="Path to output file for storing links.")     
-    parser.add_argument('--save_links',
+    parser.add_argument('--save_categorized_links',
                         default=True,
                         type=lambda x: (str(x).lower() == 'true'),
                         help="Save live and dead links to a csv file.")
-    parser.add_argument('--save_gt',
+    parser.add_argument('--save_live_data',
                         default=True,
                         type=lambda x: (str(x).lower() == 'true'),
-                        help="Save curated ground truth with live urls only.")
+                        help="Save curated data with live urls only.")
 
     args = parser.parse_args()
     main(args)
