@@ -79,9 +79,11 @@ def check_links(video_ids, has_gt):
             r = requests.get(url, allow_redirects=True, timeout=5)
             if int(r.headers.get('content-length')) and r.headers.get('content-type') == 'video/mp4':
                 working_url = True
+                video_ids[video_id]['url'] = url
                 live_video_ids[video_id] = video_ids[video_id]
             else:
                 dead_link_count += 1
+                video_ids[video_id]['url'] = url
                 dead_video_ids[video_id] = video_ids[video_id]
         except:
             dead_link_count += 1

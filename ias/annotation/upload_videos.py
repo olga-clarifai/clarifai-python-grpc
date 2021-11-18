@@ -1,6 +1,7 @@
 import os
 import json
 import argparse
+import requests
 import utils
 
 # Import in the Clarifai gRPC based objects needed
@@ -84,20 +85,32 @@ def get_previously_uploaded_video_ids(metadata):
 def upload_videos(video_ids, downloaded_videos_path):
     '''Upload videos from the list'''
 
-    # List to keep tack of failed upload
-    failed_uploads = {}
+    # Keep tack of successful and failed upload
+    failed_video_ids = {}
+    success_count = 0
 
     for i, video_id in enumerate(video_ids):
-      # Set metadata
-      input_meta = Struct()
-      input_meta.update(video_ids[video_id])
+      # Load downloaded video if available
+      if downloaded_videos_path:
+        video_file = os.path.join(downloaded_videos_path, video_id + '.mp4')
+        with open(video_file, "rb") as f:
+          file_bytes = f.read()
+      
+      # Or make a url request 
+      else:
+        try:
+          url = video_ids[video_id]['url'].replace('playsource=3&', '') # fix for dead links
+          r = requests.get(url, allow_redirects=True, timeout=2.5)
+          if int(r.headers.get('content-length')) and r.headers.get('content-type') == 'video/mp4':
+            file_bytes = r.content
+        except:
+          failed_video_ids[video_id] = video_ids[video_id]
 
-      video_file = os.path.join(downloaded_videos_path, video_id + '.mp4')
-      with open(video_file, "rb") as f:
-        # Load file
-        file_bytes = f.read()
+      # Send post request to upload video
+      if file_bytes:
+        input_meta = Struct()
+        input_meta.update(video_ids[video_id])
 
-        # Send post request to upload video
         post_inputs_response = stub.PostInputs(
             service_pb2.PostInputsRequest(
                 inputs=[
@@ -114,20 +127,16 @@ def upload_videos(video_ids, downloaded_videos_path):
 
         # Process failed response
         if utils.get_response_if_failed(post_inputs_response):
-          failed_uploads[video_id] = video_ids[video_id]
+          failed_video_ids[video_id] = video_ids[video_id]
+        else:
+          success_count += 1
 
       # Progress bar
       utils.show_progress_bar(i+1, len(video_ids))
 
-    return failed_uploads
+    logger.info("Uploaded videos: {}".format(success_count))
+    return failed_video_ids
 
-
-def print_fails(failed_uploads):
-
-  if failed_uploads:
-    print(' ---------- Faild upload --------- ')
-    for video_id in failed_uploads:
-      print(video_id)
 
 def main(args, metadata):
 
