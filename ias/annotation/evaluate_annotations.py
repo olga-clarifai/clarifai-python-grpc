@@ -1,33 +1,22 @@
 import os
-import json
 import argparse
-import itertools
-import logging
+import utils
+
+import load_ground_truth
 
 # Import in the Clarifai gRPC based objects needed
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2, service_pb2_grpc
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
-import load_ground_truth
-from utils import show_progress_bar
 
 # Setup logging
-logging.basicConfig(format='%(asctime)s %(message)s \t')
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
+logger = utils.setup_logging()
 
 # Construct the communications channel and the object stub to call requests on.
 channel = ClarifaiChannel.get_json_channel()
 stub = service_pb2_grpc.V2Stub(channel)
 
-def process_response(response):
-    if response.status.code != status_code_pb2.SUCCESS:
-        logger.error("There was an error with your request!")
-        logger.error("\tDescription: {}".format(response.status.description))
-        logger.error("\tDetails: {}".format(response.status.details))
-        raise Exception("Request failed, status code: " + str(response.status.code))
 
 def get_input_ids(metadata):
   ''' Get list of all inputs (ids of videos that were uploaded) from the app '''
@@ -37,7 +26,7 @@ def get_input_ids(metadata):
                          service_pb2.ListInputsRequest(page=1, per_page=1000),
                          metadata=metadata
   )
-  process_response(list_inputs_response)
+  utils.process_response(list_inputs_response)
 
   # Extract input ids
   input_ids = {}
@@ -111,7 +100,7 @@ def get_annotations(args, metadata, input_ids):
                                 ),
       metadata=metadata
     )
-    process_response(list_annotations_response)
+    utils.process_response(list_annotations_response)
     # TODO: make requests in batches
 
     meta_ = []
@@ -169,7 +158,7 @@ def get_annotations(args, metadata, input_ids):
     annotation_nb_max = max(annotation_nb_max, len(list_annotations_response.annotations))
 
     # Progress bar
-    show_progress_bar(i+1, len(input_ids))
+    utils.show_progress_bar(i+1, len(input_ids))
 
   logger.info("Annotations fetched")
   logger.info("\tMaximum number of annotation entries per input: {}".format(annotation_nb_max))
@@ -223,7 +212,7 @@ def compute_consensus(args, input_ids, aggregated_annotations):
   conflict_ids = []
 
   def consesus_fun(value):
-    return True if value >= args.consensus_count else False
+    return True if value >= 3 else False
 
   consensus = {}
   for input_id in input_ids:
@@ -447,32 +436,14 @@ def get_conflicting_annotations(input_ids, conflict_ids, ground_truth, annotatio
   return conflicts
 
 
-def save_data(args, to_save, data, name):
-  ''' Dump provided data to a json file '''
-
-  if to_save:
-    # Create output dir if needed
-    path = os.path.join(args.out_path, name)
-    if not os.path.exists(path):
-      os.mkdir(path)
-
-    # Set file path
-    file_path = os.path.join(path, "{}_{}_{}.json".
-                             format(args.app_name, args.experiment_name.replace(' ', '-'), name))
-
-    # Write to file
-    with open(file_path, 'w') as f:
-      json.dump(data, f)
-
-
 def main(args, metadata):
 
-  logger.info("----- Experiment {} - {} running -----".format(args.app_name, args.experiment_name))
+  logger.info("---------- Experiment {} {} ----------".format(args.language, args.experiment_name))
 
   # Get input ids
   input_ids, input_count = get_input_ids(metadata)
   # Save metadata to re-use later if needed
-  save_data(args, args.save_input_meta, input_ids, 'input_metadata')
+  utils.save_data(args.save_input_meta, args.out_path, input_ids, args.tag, 'input_metadata')
 
   # Get ground truth labels for every input and eliminate those that do not have it
   ground_truth, no_gt_count = get_ground_truth(args, input_ids)
@@ -496,31 +467,27 @@ def main(args, metadata):
 
   # Get and save fails
   false_annotations = get_false_annotations(input_ids, ground_truth, annotations_meta, consensus, markers)
-  save_data(args, args.save_false_annotations, false_annotations, 'false_annotations')
+  utils.save_data(args.save_false_annotations, args.out_path, false_annotations, args.tag, 'false_annotations')
   if conflict_ids:
     conflicts = get_conflicting_annotations(input_ids, conflict_ids, ground_truth, annotations_meta, consensus)
-    save_data(args, args.save_conflicts, conflicts, 'conflicts')
+    utils.save_data(args.save_conflicts, args.out_path, conflicts, args.tag, 'conflicts')
   else:
     logger.info("No conflicts in annotations. Nothing to dump.")
 
 
 if __name__ == '__main__':  
   parser = argparse.ArgumentParser(description="Evaluate annotations.")
-  parser.add_argument('--app_name',
-                      default='',
-                      help="Name of the app in Clarifai UI.")
   parser.add_argument('--api_key',
                       default='',
                       help="API key to the required application.")                     
   parser.add_argument('--experiment', 
-                      default=1, 
-                      choices={1, 2, 3, 4},
+                      default='Hate Speech', 
+                      choices={'Hate Speech', 'AD', 'OP', 'ID'},
                       type=int, 
-                      help="Which experiment to analyize. Depends on the app.")
-  parser.add_argument('--consensus_count',
-                      default=3,
-                      type=int,
-                      help="How many of the same definition to require for consensus.")
+                      help="Name of the experiment.")
+  parser.add_argument('--language',
+                      default='',
+                      help="Abbreviation of experiment language.")
   parser.add_argument('--broad_consensus',
                       default=True,
                       type=lambda x: (str(x).lower() == 'true'),
@@ -545,36 +512,34 @@ if __name__ == '__main__':
                       help="Save information about annotations with conflicting consensus.")
 
   args = parser.parse_args()
+  args.tag = args.language + args.experiment.replace(' ', '_')
 
   metadata = (('authorization', 'Key {}'.format(args.api_key)),)
 
-  if args.experiment == 1:
-    # Experiment 1
-    args.experiment_name = 'Hate Speech'
+  # Hate Speech
+  if args.experiment == 'Hate Speech':
     args.positive_gt = 'hate_speech'
     args.safe_gt = 'safe'
     args.positive_annotation = '2-HB'
     args.safe_annotation = '2-not-hate'
 
-  elif args.experiment == 2:
-    # Experiment 2
+  # Group 1 - AD
+  elif args.experiment == 'AD':
     args.experiment_name = 'AD'
     args.positive_gt = 'adult_&_explicit_sexual_content'
     args.safe_gt = 'safe'
     args.positive_annotation = '2-AD'
     args.safe_annotation = '2-none-of-the-above'
 
-  elif args.experiment == 3:
-    # Experiment 3
-    args.experiment_name = 'OP'
+  # Group 1 - OP
+  elif args.experiment == 'OP':
     args.positive_gt = 'obscenity_&_profanity'
     args.safe_gt = 'safe'
     args.positive_annotation = '2-OP'
     args.safe_annotation = '2-none-of-the-above'
 
-  elif args.experiment == 4:
-    # Experiment 4
-    args.experiment_name = 'ID'
+  # Group 1 - ID
+  elif args.experiment == 'ID':
     args.positive_gt = 'illegal_drugs/tobacco/e-cigarettes/vaping/alcohol'
     args.safe_gt = 'safe'
     args.positive_annotation = '2-ID'

@@ -3,6 +3,7 @@ import logging
 import os
 import csv
 import requests
+import utils
 
 # Import in the Clarifai gRPC based objects needed
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
@@ -10,12 +11,9 @@ from clarifai_grpc.grpc.api import resources_pb2, service_pb2, service_pb2_grpc
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
 import load_ground_truth
-from utils import show_progress_bar
 
 # Setup logging
-logging.basicConfig(format='%(asctime)s %(message)s \t')
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+logger = utils.setup_logging()
 
 # Construct the communications channel and the object stub to call requests on.
 channel = ClarifaiChannel.get_json_channel()
@@ -99,9 +97,9 @@ def check_links_with_ground_truth(video_ids):
                 dead_links[label].append({'video_id': video_id, 'url': url})
 
         # Progress bar
-        show_progress_bar(i+1, len(video_ids))
+        utils.show_progress_bar(i+1, len(video_ids))
 
-    logging.info("Number of dead links: {}".format(dead_link_count)) 
+    logger.info("Number of dead links: {}".format(dead_link_count)) 
     return live_links, dead_links, live_video_ids, dead_video_ids, dead_link_count
 
 
@@ -141,7 +139,7 @@ def save_distribution(args, video_ids, live_links, dead_links, dead_link_count):
             row = [label, len(live_links[label]), len(dead_links[label])]
             writer.writerow(row)
 
-    logging.info("Saved distribution to {}".format(file_path))
+    logger.info("Saved distribution to {}".format(file_path))
 
 
 def save_live_ground_truth(args, live_video_ids):
@@ -171,7 +169,7 @@ def save_live_ground_truth(args, live_video_ids):
                         row_labels[GT_LABELS_IDX[label]] = 1
                 writer.writerow(row_meta + row_labels)
 
-        logging.info("Saved live ground truth to {}".format(file_path))
+        logger.info("Saved live ground truth to {}".format(file_path))
 
 
 def save_categorized_links(args, links, name):
@@ -198,7 +196,7 @@ def save_categorized_links(args, links, name):
                     row = [label, video['video_id'], video['url']]
                     writer.writerow(row)
 
-        logging.info("Saved {} to {}".format(name, file_path))
+        logger.info("Saved {} to {}".format(name, file_path))
 
 
 def main(args):

@@ -1,15 +1,11 @@
 import json
 import requests
 import argparse
-import logging
 import os
-from utils import show_progress_bar
+import utils
 
 # Setup logging
-logging.basicConfig(format='%(asctime)s %(message)s \t')
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
+logger = utils.setup_logging()
 
 def main(args):
 
@@ -18,12 +14,12 @@ def main(args):
     # Load file containing info about videos to download
     with open(args.selected_videos, 'r') as f:
         video_ids = json.load(f)
-    logging.info("List of selected videos loaded: {} videos to upload".format(len(video_ids)))  
+    logger.info("List of selected videos loaded: {} videos to upload".format(len(video_ids)))  
 
     # Download videos one by one
     downloaded_count = 0
     for i, video_id in enumerate(video_ids):
-        #logging.info("Downloading video {} from {}".format(video_id, video_ids[video_id]['url']))  
+        #logger.info("Downloading video {} from {}".format(video_id, video_ids[video_id]['url']))  
         video_file = os.path.join(args.out_path, video_id + '.mp4')
 
         # Make request and write if no error
@@ -35,16 +31,16 @@ def main(args):
                 open(video_file, 'wb').write(r.content)
                 downloaded_count += 1
             else:
-                #logging.info("\tNo content. Video skipped.")  
+                #logger.info("\tNo content. Video skipped.")  
                 pass
         except:
-            #logging.info("\tBad request. Video skipped.")  
+            #logger.info("\tBad request. Video skipped.")  
             pass
 
         # Progress bar
-        show_progress_bar(i+1, len(video_ids))
+        utils.show_progress_bar(i+1, len(video_ids))
 
-    logging.info("Done. Downloaded {} videos.".format(downloaded_count)) 
+    logger.info("Done. Downloaded {} videos.".format(downloaded_count)) 
 
 
 if __name__ == '__main__':  

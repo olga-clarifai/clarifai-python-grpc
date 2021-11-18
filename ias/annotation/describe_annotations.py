@@ -1,8 +1,5 @@
-import os
-import json
 import argparse
-import itertools
-import logging
+import utils
 
 from save_annotations import save_annotations_csv
 
@@ -13,21 +10,12 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
 
 # Setup logging
-logging.basicConfig(format='%(asctime)s %(message)s \t')
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
+logger = utils.setup_logging()
 
 # Construct the communications channel and the object stub to call requests on.
 channel = ClarifaiChannel.get_json_channel()
 stub = service_pb2_grpc.V2Stub(channel)
 
-def process_response(response):
-    if response.status.code != status_code_pb2.SUCCESS:
-        logger.error("There was an error with your request!")
-        logger.error("\tDescription: {}".format(response.status.description))
-        logger.error("\tDetails: {}".format(response.status.details))
-        raise Exception("Request failed, status code: " + str(response.status.code))
 
 def get_input_ids(metadata):
   ''' Get list of all inputs (ids of videos that were uploaded) from the app '''
@@ -39,7 +27,7 @@ def get_input_ids(metadata):
                           service_pb2.ListInputsRequest(page=page, per_page=1000),
                           metadata=metadata
     )
-    process_response(list_inputs_response)
+    utils.process_response(list_inputs_response)
 
     for input_object in list_inputs_response.inputs:
       json_obj = MessageToDict(input_object)
@@ -80,7 +68,7 @@ def get_annotations(args, metadata, input_ids):
                                 ),
       metadata=metadata
     )
-    process_response(list_annotations_response)
+    utils.process_response(list_annotations_response)
     # TODO: make requests in batches
 
     meta_ = []
@@ -189,7 +177,7 @@ def compute_consensus(args, input_ids, aggregated_annotations):
   conflict_ids = []
 
   def consesus_fun(value):
-    return True if value >= args.consensus_count else False
+    return True if value >= 3 else False
 
   consensus = {}
   for input_id in input_ids:
@@ -377,23 +365,6 @@ def get_conflicting_annotations(input_ids, conflict_ids, annotations_meta, conse
   return conflicts
 
 
-def save_data(args, to_save, data, name):
-  ''' Dump provided data to a json file '''
-
-  if to_save:
-    # Create output dir if needed
-    path = os.path.join(args.out_path, name)
-    if not os.path.exists(path):
-      os.mkdir(path)
-
-    # Set file path
-    file_path = os.path.join(path, "{}_{}_{}.json".format(args.app_name, args.group, name))
-
-    # Write to file
-    with open(file_path, 'w') as f:
-      json.dump(data, f)
-
-
 def main(args, metadata):
 
   logger.info("----- Experiment {} - {} running -----".format(args.app_name, args.group))
@@ -424,27 +395,23 @@ def main(args, metadata):
 
   if conflict_ids:
     conflicts = get_conflicting_annotations(input_ids, conflict_ids, annotations_meta, consensus)
-    save_data(args, args.save_conflicts, conflicts, 'conflicts')
+    utils.save_data(args.save_conflicts, args.out_path, conflicts, args.tag, 'conflicts')
   else:
     logger.info("No conflicts in annotations. Nothing to dump.")
 
 
 if __name__ == '__main__':  
   parser = argparse.ArgumentParser(description="Run tracking.")
-  parser.add_argument('--app_name',
+  parser.add_argument('--api_key',
                       default='',
-                      help="Name of the app in Clarifai UI.")
+                      help="API key to the required application.") 
   parser.add_argument('--group',
                       default='Hate_Speech',
                       choices={'Hate_Speech', 'Group_1'},
-                      help="Name of the group.")
-  parser.add_argument('--api_key',
+                      help="Name of the group.")  
+  parser.add_argument('--language',
                       default='',
-                      help="API key to the required application.")                     
-  parser.add_argument('--consensus_count',
-                      default=3,
-                      type=int,
-                      help="How many of the same definition to require for consensus.")
+                      help="Abbreviation of experiment language.")                  
   parser.add_argument('--broad_consensus',
                       default=True,
                       type=lambda x: (str(x).lower() == 'true'),
@@ -462,13 +429,16 @@ if __name__ == '__main__':
                       help="Save information about annotations with conflicting consensus.")
 
   args = parser.parse_args()
+  args.tag = args.language + args.experiment.replace(' ', '_')
 
   metadata = (('authorization', 'Key {}'.format(args.api_key)),)
 
+  # Hate Speech
   if args.group == 'Hate_Speech':
     args.positive_annotations = ['2-HB']
     args.safe_annotation = '2-not-hate'
 
+  # Group 1
   elif args.group == 'Group_1':
     args.positive_annotations = ['2-AD', '2-OP', '2-ID']
     args.safe_annotation = '2-none-of-the-above'
