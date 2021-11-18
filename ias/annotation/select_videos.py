@@ -4,12 +4,13 @@ import json
 import csv
 import utils
 
+import ground_truth as gt
+
 # Import in the Clarifai gRPC based objects needed
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2, service_pb2_grpc
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
-import load_ground_truth
 
 # Setup logging
 logger = utils.setup_logging()
@@ -24,7 +25,7 @@ def load_meta(args):
 
     # Load ground truth if available
     if args.has_gt:
-        ground_truth = load_ground_truth.load_all_from_csv(args.videos_meta, 'safe')
+        ground_truth = gt.load_all_from_csv(args.videos_meta, 'safe')
 
     # Load the rest of meta
     video_ids = {}

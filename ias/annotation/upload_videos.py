@@ -6,9 +6,9 @@ import utils
 # Import in the Clarifai gRPC based objects needed
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2, service_pb2_grpc
+from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
 from google.protobuf.struct_pb2 import Struct
-# from proto.clarifai.api.resources_pb2 import Video
 
 # Setup logging
 logger = utils.setup_logging()
@@ -51,6 +51,7 @@ def get_previously_uploaded_video_ids(metadata):
   ''' Get ids of videos that were already uploaded to the app '''
 
   video_ids = []
+  failed_input_ids = {}
   
   # Get inputs
   for page in range(1, 11):
@@ -58,14 +59,25 @@ def get_previously_uploaded_video_ids(metadata):
                           service_pb2.ListInputsRequest(page=page, per_page=1000),
                           metadata=metadata
     )
-    utils.process_response(list_inputs_response)
 
-    # Extract video ids
+    # Extract video ids for inputs without errors
     for input_object in list_inputs_response.inputs:
-      json_obj = MessageToDict(input_object)
-      video_ids.append(json_obj['data']['metadata']['video_id'])
+      if input_object.status.code != status_code_pb2.INPUT_DOWNLOAD_SUCCESS:
+        failed_input_ids[input_object.id] = input_object
+      else:
+        json_obj = MessageToDict(input_object)
+        video_ids.append(json_obj['data']['metadata']['video_id'])
 
-  logger.info("Previously uploaded videos: {}".format(len(video_ids)))
+  # Remove failed inputs from the app
+  for input_id in failed_input_ids:
+    delete_input_response = stub.DeleteInput(
+        service_pb2.DeleteInputRequest(input_id=input_id),
+        metadata=metadata
+    )
+    utils.process_response(delete_input_response)
+  logger.info("Failed inputs removed from the app: {}".format(len(failed_input_ids)))
+
+  logger.info("Previously successfully uploaded videos: {}".format(len(video_ids)))
   return video_ids
 
 

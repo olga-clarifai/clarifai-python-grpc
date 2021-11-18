@@ -15,6 +15,8 @@ GT_LABELS = ['adult_&_explicit_sexual_content',
 
 GT_LABELS_ = [label + '_y' for label in GT_LABELS]
 
+GT_LABELS_IDX = {label: idx for label, idx in zip(GT_LABELS, range(len(GT_LABELS )))}
+
 
 def load_all_from_csv(csv_path, safe_gt_label):
     '''Load ground truth for videos selection/upload. Format {video_id: gt_labels}.'''
@@ -119,6 +121,15 @@ def load_from_metadata(input_ids):
     logging.info('Ground truth extracted from metadata.')
 
     return ground_truth, 0
+
+
+def get_from_meta(meta):
+
+    labels = [0] * len(GT_LABELS)
+    for label in GT_LABELS:
+        if label in meta:
+            labels[GT_LABELS_IDX[label]] = 1
+    return labels
 
 
 def _clean_key(key):

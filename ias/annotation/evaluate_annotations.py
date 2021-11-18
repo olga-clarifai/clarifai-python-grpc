@@ -2,7 +2,7 @@ import os
 import argparse
 import utils
 
-import load_ground_truth
+import ground_truth as gt
 
 # Import in the Clarifai gRPC based objects needed
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
@@ -50,9 +50,9 @@ def get_ground_truth(args, input_ids):
   ''' Get list of ground truth concepts for every input id'''
 
   if os.path.exists(args.ground_truth):
-    ground_truth, no_gt_count = load_ground_truth.load_from_csv(input_ids, args.ground_truth, args.safe_gt)
+    ground_truth, no_gt_count = gt.load_from_csv(input_ids, args.ground_truth, args.safe_gt)
   else:
-    ground_truth, no_gt_count = load_ground_truth.load_from_metadata(input_ids)
+    ground_truth, no_gt_count = gt.load_from_metadata(input_ids)
 
   # # ------ DEBUG CODE
   # # Compute list of unique labels
