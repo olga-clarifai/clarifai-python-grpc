@@ -237,7 +237,7 @@ if __name__ == '__main__':
                         default='',
                         help="Path to output file for storing links.")     
     parser.add_argument('--save_links',
-                        default=False,
+                        default=True,
                         type=lambda x: (str(x).lower() == 'true'),
                         help="Save live and dead links to a csv file.")
     parser.add_argument('--save_gt',

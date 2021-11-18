@@ -3,6 +3,7 @@ import requests
 import argparse
 import logging
 import os
+from utils import show_progress_bar
 
 # Setup logging
 logging.basicConfig(format='%(asctime)s %(message)s \t')
@@ -21,8 +22,8 @@ def main(args):
 
     # Download videos one by one
     downloaded_count = 0
-    for video_id in video_ids:
-        logging.info("Downloading video {} from {}".format(video_id, video_ids[video_id]['url']))  
+    for i, video_id in enumerate(video_ids):
+        #logging.info("Downloading video {} from {}".format(video_id, video_ids[video_id]['url']))  
         video_file = os.path.join(args.out_path, video_id + '.mp4')
 
         # Make request and write if no error
@@ -34,12 +35,16 @@ def main(args):
                 open(video_file, 'wb').write(r.content)
                 downloaded_count += 1
             else:
-                logging.info("\tNo content. Video skipped.")  
+                #logging.info("\tNo content. Video skipped.")  
+                pass
         except:
-            logging.info("\tBad request. Video skipped.")  
+            #logging.info("\tBad request. Video skipped.")  
+            pass
+
+        # Progress bar
+        show_progress_bar(i+1, len(video_ids))
 
     logging.info("Done. Downloaded {} videos.".format(downloaded_count)) 
-
 
 
 if __name__ == '__main__':  

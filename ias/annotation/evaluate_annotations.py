@@ -10,6 +10,7 @@ from clarifai_grpc.grpc.api import resources_pb2, service_pb2, service_pb2_grpc
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
 import load_ground_truth
+from utils import show_progress_bar
 
 # Setup logging
 logging.basicConfig(format='%(asctime)s %(message)s \t')
@@ -89,6 +90,8 @@ def remove_inputs_without_gt(input_ids, ground_truth):
 def get_annotations(args, metadata, input_ids):
   ''' Get list of annotations for every input id'''
 
+  logger.info("Fetching annotations...")
+
   # Variable to check if number of annotations per page is sufficient
   annotation_nb_max = 0
   # Number of inputs with duplicated annotations
@@ -99,7 +102,7 @@ def get_annotations(args, metadata, input_ids):
   annotations_meta = {} # store metadata
 
   # Get annotations for every input id
-  for input_id in input_ids:
+  for i, input_id in enumerate(input_ids):
     list_annotations_response = stub.ListAnnotations(
                                 service_pb2.ListAnnotationsRequest(
                                 input_ids=[input_id], 
@@ -164,6 +167,9 @@ def get_annotations(args, metadata, input_ids):
 
     # Update max count variable
     annotation_nb_max = max(annotation_nb_max, len(list_annotations_response.annotations))
+
+    # Progress bar
+    show_progress_bar(i+1, len(input_ids))
 
   logger.info("Annotations fetched")
   logger.info("\tMaximum number of annotation entries per input: {}".format(annotation_nb_max))
@@ -530,11 +536,11 @@ if __name__ == '__main__':
                       type=lambda x: (str(x).lower() == 'true'),
                       help="Save input metadata in file or not.")
   parser.add_argument('--save_false_annotations',
-                      default=False,
+                      default=True,
                       type=lambda x: (str(x).lower() == 'true'),
                       help="Save information about false annotations inputs in file or not.")
   parser.add_argument('--save_conflicts',
-                      default=False,
+                      default=True,
                       type=lambda x: (str(x).lower() == 'true'),
                       help="Save information about annotations with conflicting consensus.")
 

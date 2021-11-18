@@ -149,7 +149,7 @@ if __name__ == '__main__':
                         default='', 
                         help="Path to csv file with ground truth.")     
     parser.add_argument('--has_gt',
-                        default=True,
+                        default=False,
                         type=lambda x: (str(x).lower() == 'true'),
                         help="Indicates if ground truth is present in meta file.")                         
     parser.add_argument('--out_path',
@@ -160,7 +160,7 @@ if __name__ == '__main__':
                         type=lambda x: (str(x).lower() == 'true'),
                         help="Save ids of selected videos to a json file.")
 
-    args = parser.parse_args()
+    args = parser.parse_args() 
 
     metadata = (('authorization', 'Key {}'.format(args.api_key)),)
 
