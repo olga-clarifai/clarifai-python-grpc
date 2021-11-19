@@ -77,7 +77,7 @@ def save_data(args, to_save, data, name):
             json.dump(data, f)
 
 
-def main(args, metadata):
+def main(args):
 
     # Load videos metadata
     video_ids = load_meta(args)
@@ -107,6 +107,4 @@ if __name__ == '__main__':
 
     args = parser.parse_args() 
 
-    metadata = (('authorization', 'Key {}'.format(args.api_key)),)
-
-    main(args, metadata)
+    main(args)

@@ -1,5 +1,4 @@
 import argparse
-import logging
 import os
 import csv
 import requests
@@ -232,14 +231,14 @@ if __name__ == '__main__':
                         default='', 
                         help="Path to csv file with links and ground truth (optional).")     
     parser.add_argument('--has_gt',
-                        default=True,
+                        default=False,
                         type=lambda x: (str(x).lower() == 'true'),
                         help="Indicates if ground truth is present in meta file.")                         
     parser.add_argument('--out_path',
                         default='',
                         help="Path to output file for storing links.")     
     parser.add_argument('--save_categorized_links',
-                        default=True,
+                        default=False,
                         type=lambda x: (str(x).lower() == 'true'),
                         help="Save live and dead links to a csv file.")
     parser.add_argument('--save_live_data',
