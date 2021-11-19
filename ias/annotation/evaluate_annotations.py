@@ -438,7 +438,7 @@ def get_conflicting_annotations(input_ids, conflict_ids, ground_truth, annotatio
 
 def main(args, metadata):
 
-  logger.info("---------- Experiment {} {} ----------".format(args.language, args.experiment_name))
+  logger.info("---------- Experiment {} {} ----------".format(args.language, args.experiment))
 
   # Get input ids
   input_ids, input_count = get_input_ids(metadata)
@@ -483,7 +483,6 @@ if __name__ == '__main__':
   parser.add_argument('--experiment', 
                       default='Hate Speech', 
                       choices={'Hate Speech', 'AD', 'OP', 'ID'},
-                      type=int, 
                       help="Name of the experiment.")
   parser.add_argument('--language',
                       default='',
