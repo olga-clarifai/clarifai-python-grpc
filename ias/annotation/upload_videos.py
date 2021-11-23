@@ -90,9 +90,11 @@ def upload_videos(video_ids, downloaded_videos_path):
     success_count = 0
 
     for i, video_id in enumerate(video_ids):
+      file_bytes = False
+      video_file = os.path.join(downloaded_videos_path, video_id + '.mp4')
+
       # Load downloaded video if available
-      if downloaded_videos_path:
-        video_file = os.path.join(downloaded_videos_path, video_id + '.mp4')
+      if os.path.exists(video_file):
         with open(video_file, "rb") as f:
           file_bytes = f.read()
       

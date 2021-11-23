@@ -14,7 +14,7 @@ def main(args):
     # Load file containing info about videos to download
     with open(args.selected_videos, 'r') as f:
         video_ids = json.load(f)
-    logger.info("List of selected videos loaded: {} videos to upload".format(len(video_ids)))  
+    logger.info("List of selected videos loaded: {} videos to download".format(len(video_ids)))  
 
     # Download videos one by one
     downloaded_count = 0
@@ -22,20 +22,21 @@ def main(args):
         #logger.info("Downloading video {} from {}".format(video_id, video_ids[video_id]['url']))  
         video_file = os.path.join(args.out_path, video_id + '.mp4')
 
-        # Make request and write if no error
-        try:
-            # url = video_ids[video_id]['url']
-            url = video_ids[video_id]['url'].replace('playsource=3&', '') # fix for dead links
-            r = requests.get(url, allow_redirects=True, timeout=2.5)
-            if int(r.headers.get('content-length')) and r.headers.get('content-type') == 'video/mp4':
-                open(video_file, 'wb').write(r.content)
-                downloaded_count += 1
-            else:
-                #logger.info("\tNo content. Video skipped.")  
+        if not os.path.exists(video_file):
+            # Make request and write if no error
+            try:
+                # url = video_ids[video_id]['url']
+                url = video_ids[video_id]['url'].replace('playsource=3&', '') # fix for dead links
+                r = requests.get(url, allow_redirects=True, timeout=2.5)
+                if int(r.headers.get('content-length')) and r.headers.get('content-type') == 'video/mp4':
+                    open(video_file, 'wb').write(r.content)
+                    downloaded_count += 1
+                else:
+                    #logger.info("\tNo content. Video skipped.")  
+                    pass
+            except:
+                #logger.info("\tBad request. Video skipped.")  
                 pass
-        except:
-            #logger.info("\tBad request. Video skipped.")  
-            pass
 
         # Progress bar
         utils.show_progress_bar(i+1, len(video_ids))

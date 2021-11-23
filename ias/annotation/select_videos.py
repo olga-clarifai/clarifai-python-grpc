@@ -36,6 +36,7 @@ def load_meta(args):
 
             # Extract meta
             try: # ENG
+                #meta = {'video_id': line['video_id'], 'description': line['video_caption'], 'url': line['video_url']}
                 meta = {'video_id': line['video_id'], 'description': line['video_description'], 'url': line['video_url']}
             except: # FR/DE
                 meta = {'video_id': line['video_id'], 'description': line['description'], 'url': line['url']}
