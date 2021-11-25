@@ -333,21 +333,21 @@ def plot_results(args, input_count, not_annotated_count, no_consensus_count, tot
             format(annotation, totals[annotation]['_LP_'], totals[annotation]['_LN_'], totals[annotation]['_LS_']))
     print("--------------------------------------------------\n")
 
-    # # Print distribution of '1-' labels
-    # for label in sorted(labels_distr['1-'].keys()):
-    #   print("{:.2f} % ({})\t {}".format(labels_distr['1-'][label], labels_count['1-'][label], label))
-    # print("--------------------------------------------------")
-    # print("Total number: {} | Duplicates: {:.2f} % ({})".
-    #       format(labels_total['1-'], (duplicates_count['1-']*100)/labels_total['1-'], duplicates_count['1-']))
+    # Print distribution of '1-' labels
+    for label in sorted(labels_distr['1-'].keys()):
+      print("{:.2f} % ({})\t {}".format(labels_distr['1-'][label], labels_count['1-'][label], label))
+    print("--------------------------------------------------")
+    print("Total number: {} | Duplicates: {:.2f} % ({})".
+          format(labels_total['1-'], (duplicates_count['1-']*100)/labels_total['1-'], duplicates_count['1-']))
 
-    # print("\n")   
+    print("\n")   
 
-    # # Print distribution of '2-' labels
-    # for label in sorted(labels_distr['2-'].keys()):
-    #   print("{:.2f} % ({})\t {}".format(labels_distr['2-'][label], labels_count['2-'][label], label))
-    # print("--------------------------------------------------")
-    # print("Total number: {} | Duplicates: {:.2f} % ({})".
-    #       format(labels_total['2-'], (duplicates_count['2-']*100)/labels_total['2-'], duplicates_count['2-']))   
+    # Print distribution of '2-' labels
+    for label in sorted(labels_distr['2-'].keys()):
+      print("{:.2f} % ({})\t {}".format(labels_distr['2-'][label], labels_count['2-'][label], label))
+    print("--------------------------------------------------")
+    print("Total number: {} | Duplicates: {:.2f} % ({})".
+          format(labels_total['2-'], (duplicates_count['2-']*100)/labels_total['2-'], duplicates_count['2-']))   
 
     print("\n**************************************************\n")
     
