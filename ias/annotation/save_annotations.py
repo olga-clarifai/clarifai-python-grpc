@@ -31,7 +31,7 @@ def save_annotations_csv(args, input_ids, classes, name):
             os.mkdir(path)
 
         # Set file path
-        file_path = os.path.join(path, "{}_{}_{}.csv".format(args.app_name, args.group, name))
+        file_path = os.path.join(path, "{}_{}.csv".format(args.tag, name))
 
         # Write to file
         with open(file_path, 'w', encoding='UTF8', newline='') as f:
@@ -50,7 +50,7 @@ def save_annotations_csv(args, input_ids, classes, name):
 def _from_input_to_output(input_id, input, classes):
     ''' Make one output row from one input and its annotations'''
     
-    meta = [input_id, input['id'], input['description'], input['url']]
+    meta = [input_id, input['video_id'], input['description'], input['url']]
     labels = _from_classes_to_labels(classes)
     return meta + labels
 

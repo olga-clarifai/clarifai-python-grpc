@@ -22,16 +22,24 @@ def get_input_ids(metadata):
 
   input_ids = {}
   # Get inputs
-  for page in range(1,4):
+  for page in range(1,11):
     list_inputs_response = stub.ListInputs(
                           service_pb2.ListInputsRequest(page=page, per_page=1000),
                           metadata=metadata
     )
     utils.process_response(list_inputs_response)
 
+    # Process inputs in response
     for input_object in list_inputs_response.inputs:
       json_obj = MessageToDict(input_object)
-      input_ids[json_obj['id']] = json_obj['data']['metadata']
+
+      # Correct input's meta and store it
+      meta_ = json_obj['data']['metadata']
+      meta = {}
+      meta['video_id'] = meta_['video_id'] if 'video_id' in meta_ else meta_['id']
+      meta['description'] = meta_['description'] if 'description' in meta_ else meta_['video_description']
+      meta['url'] = meta_['url'] if 'url' in meta_ else meta_['video_url']
+      input_ids[json_obj['id']] = meta
   
   logger.info("Input ids fetched. Number of fetched inputs: {}".format(len(input_ids)))
 
@@ -59,7 +67,7 @@ def get_annotations(args, metadata, input_ids):
   annotations_meta = {} # store metadata
 
   # Get annotations for every input id
-  for input_id in input_ids:
+  for i, input_id in enumerate(input_ids):
     list_annotations_response = stub.ListAnnotations(
                                 service_pb2.ListAnnotationsRequest(
                                 input_ids=[input_id], 
@@ -98,7 +106,7 @@ def get_annotations(args, metadata, input_ids):
     if len(meta_) > len(meta):
         duplicate_count += 1
         duplicated_inputs.append({'input_id': input_id, 
-                                  'video_id': input_ids[input_id]['source-file-line'],  
+                                  'video_id': input_ids[input_id]['video_id'],  
                                   'duplicates': len(meta_) - len(meta)})
 
     # Extract concepts only
@@ -124,6 +132,9 @@ def get_annotations(args, metadata, input_ids):
 
     # Update max count variable
     annotation_nb_max = max(annotation_nb_max, len(list_annotations_response.annotations))
+
+    # Progress bar
+    utils.show_progress_bar(i+1, len(input_ids))
 
   logger.info("Annotations fetched.")
   # logger.info("\tMaximum number of annotation entries per input: {}".format(annotation_nb_max))
@@ -322,21 +333,21 @@ def plot_results(args, input_count, not_annotated_count, no_consensus_count, tot
             format(annotation, totals[annotation]['_LP_'], totals[annotation]['_LN_'], totals[annotation]['_LS_']))
     print("--------------------------------------------------\n")
 
-    # Print distribution of '1-' labels
-    for label in sorted(labels_distr['1-'].keys()):
-      print("{:.2f} % ({})\t {}".format(labels_distr['1-'][label], labels_count['1-'][label], label))
-    print("--------------------------------------------------")
-    print("Total number: {} | Duplicates: {:.2f} % ({})".
-          format(labels_total['1-'], (duplicates_count['1-']*100)/labels_total['1-'], duplicates_count['1-']))
+    # # Print distribution of '1-' labels
+    # for label in sorted(labels_distr['1-'].keys()):
+    #   print("{:.2f} % ({})\t {}".format(labels_distr['1-'][label], labels_count['1-'][label], label))
+    # print("--------------------------------------------------")
+    # print("Total number: {} | Duplicates: {:.2f} % ({})".
+    #       format(labels_total['1-'], (duplicates_count['1-']*100)/labels_total['1-'], duplicates_count['1-']))
 
-    print("\n")   
+    # print("\n")   
 
-    # Print distribution of '2-' labels
-    for label in sorted(labels_distr['2-'].keys()):
-      print("{:.2f} % ({})\t {}".format(labels_distr['2-'][label], labels_count['2-'][label], label))
-    print("--------------------------------------------------")
-    print("Total number: {} | Duplicates: {:.2f} % ({})".
-          format(labels_total['2-'], (duplicates_count['2-']*100)/labels_total['2-'], duplicates_count['2-']))   
+    # # Print distribution of '2-' labels
+    # for label in sorted(labels_distr['2-'].keys()):
+    #   print("{:.2f} % ({})\t {}".format(labels_distr['2-'][label], labels_count['2-'][label], label))
+    # print("--------------------------------------------------")
+    # print("Total number: {} | Duplicates: {:.2f} % ({})".
+    #       format(labels_total['2-'], (duplicates_count['2-']*100)/labels_total['2-'], duplicates_count['2-']))   
 
     print("\n**************************************************\n")
     
@@ -367,7 +378,7 @@ def get_conflicting_annotations(input_ids, conflict_ids, annotations_meta, conse
 
 def main(args, metadata):
 
-  logger.info("----- Experiment {} - {} running -----".format(args.app_name, args.group))
+  logger.info("----- Experiment {} running -----".format(args.tag))
 
   # Get input ids
   input_ids, input_count = get_input_ids(metadata)
@@ -409,9 +420,9 @@ if __name__ == '__main__':
                       default='Hate_Speech',
                       choices={'Hate_Speech', 'Group_1'},
                       help="Name of the group.")  
-  parser.add_argument('--language',
+  parser.add_argument('--tag',
                       default='',
-                      help="Abbreviation of experiment language.")                  
+                      help="Name of the process/application.")                  
   parser.add_argument('--broad_consensus',
                       default=True,
                       type=lambda x: (str(x).lower() == 'true'),
@@ -429,7 +440,7 @@ if __name__ == '__main__':
                       help="Save information about annotations with conflicting consensus.")
 
   args = parser.parse_args()
-  args.tag = args.language + args.experiment.replace(' ', '_')
+  args.tag = args.tag + '_' + args.group
 
   metadata = (('authorization', 'Key {}'.format(args.api_key)),)
 
