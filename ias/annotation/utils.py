@@ -37,7 +37,7 @@ def get_response_if_failed(response):
                 'details': response.status.details}
     else:
         return False
-
+  
 
 def save_data(to_save, out_path, data, tag, name):
   ''' Dump provided data to a json file '''

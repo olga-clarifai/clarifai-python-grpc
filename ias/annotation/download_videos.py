@@ -3,6 +3,7 @@ import requests
 import argparse
 import os
 import utils
+from tqdm import tqdm
 
 # Setup logging
 logger = utils.setup_logging()
@@ -18,7 +19,7 @@ def main(args):
 
     # Download videos one by one
     downloaded_count = 0
-    for i, video_id in enumerate(video_ids):
+    for video_id in tqdm(video_ids, total=len(video_ids)):
         #logger.info("Downloading video {} from {}".format(video_id, video_ids[video_id]['url']))  
         video_file = os.path.join(args.out_path, video_id + '.mp4')
 
@@ -37,9 +38,6 @@ def main(args):
             except:
                 #logger.info("\tBad request. Video skipped.")  
                 pass
-
-        # Progress bar
-        utils.show_progress_bar(i+1, len(video_ids))
 
     logger.info("Done. Downloaded {} videos.".format(downloaded_count)) 
 

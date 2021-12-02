@@ -3,6 +3,7 @@ import os
 import csv
 import requests
 import utils
+from tqdm import tqdm
 
 import ground_truth as gt
 
@@ -69,7 +70,7 @@ def check_links(video_ids, has_gt):
     live_links = {label: [] for label in GT_LABELS} if has_gt else None
     dead_links = {label: [] for label in GT_LABELS} if has_gt else None
 
-    for i, video_id in enumerate(video_ids):
+    for i, video_id in enumerate(tqdm(video_ids, total=len(video_ids))):
         url = video_ids[video_id]['url'].replace('playsource=3&', '') # fix from TT
         working_url = False
 
@@ -97,8 +98,8 @@ def check_links(video_ids, has_gt):
                 for label in video_ids[video_id]['ground_truth']:
                     dead_links[label].append({'video_id': video_id, 'url': url})
 
-        # Progress bar
-        utils.show_progress_bar(i+1, len(video_ids))
+        # # Progress bar
+        # utils.show_progress_bar(i+1, len(video_ids))
 
     logger.info("Number of dead links: {}".format(dead_link_count)) 
     return dead_link_count, live_video_ids, dead_video_ids, live_links, dead_links
@@ -238,7 +239,7 @@ if __name__ == '__main__':
                         default='',
                         help="Path to output file for storing links.")     
     parser.add_argument('--save_categorized_links',
-                        default=False,
+                        default=True,
                         type=lambda x: (str(x).lower() == 'true'),
                         help="Save live and dead links to a csv file.")
     parser.add_argument('--save_live_data',

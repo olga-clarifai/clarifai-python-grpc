@@ -5,6 +5,7 @@ import utils
 import hashlib
 import numpy as np
 import itertools
+from tqdm import tqdm
 
 # Setup logging
 logger = utils.setup_logging()
@@ -19,7 +20,7 @@ def main(args):
     # Open videos and compute hash
     hashes_ids = {}
     downloaded_count = 0
-    for i, video_id in enumerate(video_ids):
+    for video_id in tqdm(video_ids, total=len(video_ids)):
         video_file = os.path.join(args.in_path, video_id + '.mp4')
         if os.path.exists(video_file):
             downloaded_count += 1
@@ -34,9 +35,6 @@ def main(args):
                     hashes_ids[hash].append(video_id)
                 else:
                     hashes_ids[hash] = [video_id] 
-
-            # Progress bar
-            utils.show_progress_bar(i+1, len(video_ids))
 
     logger.info("Number of downloaded videos to curate: {}".format(downloaded_count))
 
@@ -74,16 +72,16 @@ def main(args):
 if __name__ == '__main__':  
     parser = argparse.ArgumentParser(description="Download videos.")    
     parser.add_argument('--tag',
-                        default='DE_set1',
+                        default='',
                         help="Name of the process/application.")   
     parser.add_argument('--selected_videos', 
-                        default='/Users/olgadergachyova/work/ias/clarifai-python-grpc/ias/annotation/output/selected_videos/DE/DE_set1_selected_videos.json', 
+                        default='', 
                         help="Path to json file with metadata about the selected videos to download.") 
     parser.add_argument('--in_path',
-                        default='/Users/olgadergachyova/Downloads/DATA/videos/DE/set1',
+                        default='',
                         help="Path to load videos from.")  
     parser.add_argument('--out_path',
-                        default='/Users/olgadergachyova/work/ias/clarifai-python-grpc/ias/annotation/output',
+                        default='',
                         help="Path to output curated lists.")  
     parser.add_argument('--save_curated_list',
                         default=True,

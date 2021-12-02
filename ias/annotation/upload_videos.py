@@ -23,15 +23,15 @@ def get_video_ids_to_upload(args, metadata):
   '''Load a list of selected video ids to upload'''
 
   # Get the list of videos selected for upload
-  with open(args.selected_videos, 'r') as f:
+  with open(args.videos_meta, 'r') as f:
     video_ids = json.load(f)
   logger.info("Selected videos: {}".format(len(video_ids)))  
 
   # Keep on list only videos that were downloaded
-  if args.downloaded_videos:
+  if args.videos_path:
     video_ids_ = {}
     for video_id in video_ids:
-      if os.path.exists(os.path.join(args.downloaded_videos, video_id + '.mp4')):
+      if os.path.exists(os.path.join(args.videos_path, video_id + '.mp4')):
         video_ids_[video_id] = video_ids[video_id]
     video_ids = video_ids_
     logger.info("Downloaded videos: {}".format(len(video_ids))) 
@@ -82,7 +82,7 @@ def get_previously_uploaded_video_ids(metadata):
   return video_ids
 
 
-def upload_videos(video_ids, downloaded_videos_path):
+def upload_videos(video_ids, videos_path):
     '''Upload videos from the list'''
 
     # Keep tack of successful and failed upload
@@ -91,7 +91,7 @@ def upload_videos(video_ids, downloaded_videos_path):
 
     for i, video_id in enumerate(video_ids):
       file_bytes = False
-      video_file = os.path.join(downloaded_videos_path, video_id + '.mp4')
+      video_file = os.path.join(videos_path, video_id + '.mp4')
 
       # Load downloaded video if available
       if os.path.exists(video_file):
@@ -148,10 +148,11 @@ def main(args, metadata):
   video_ids = get_video_ids_to_upload(args, metadata)
 
   # Upload videos
-  failed_uploads = upload_videos(video_ids, args.downloaded_videos)
+  failed_uploads = upload_videos(video_ids, args.videos_path)
 
   # Save meta about videos with a failed upload
-  utils.save_data(args.save_failed, args.out_path, failed_uploads, args.tag, 'failed_uploads')
+  if failed_uploads:
+    utils.save_data(args.save_failed, args.out_path, failed_uploads, args.tag, 'failed_uploads')
 
 
 if __name__ == '__main__':  
@@ -162,12 +163,12 @@ if __name__ == '__main__':
   parser.add_argument('--tag',
                     default='',
                     help="Name of the process/application.")         
-  parser.add_argument('--downloaded_videos',
+  parser.add_argument('--videos_path',
                       default='',
                       help="Path to folder with dowloaded videos.")                
-  parser.add_argument('--selected_videos', 
+  parser.add_argument('--videos_meta', 
                       default='', 
-                      help="Path to json file with video ids of videos selected for upload.") 
+                      help="Path to json file with videos metadata.") 
   parser.add_argument('--out_path', 
                       default='', 
                       help="Path to general output directory for this script.")
