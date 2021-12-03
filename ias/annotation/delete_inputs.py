@@ -35,7 +35,7 @@ def get_uploaded_inputs(metadata):
     for input_object in list_inputs_response.inputs:
         json_obj = MessageToDict(input_object)
         video_id = json_obj['data']['metadata']['video_id']
-        input_id = False # TODO
+        input_id = input_object.id
         video_ids[video_id] = input_id
 
   logger.info("Previously uploaded videos: {}".format(len(video_ids)))
