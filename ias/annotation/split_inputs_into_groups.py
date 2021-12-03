@@ -17,9 +17,9 @@ stub = service_pb2_grpc.V2Stub(channel)
 def process_response(response):
   if response.status.code != status_code_pb2.SUCCESS:
     print("There was an error with your request!")
-    print("\tDescription: {}".format(response.status.description))
-    print("\tDetails: {}".format(response.status.details))
-    raise Exception("Request failed, status code: " + str(response.status.code))
+    print(f"\tDescription: {response.status.description}")
+    print(f"\tDetails: {response.status.details}")
+    raise Exception(f"Request failed, status code: {response.status.code}")
 
 
 def get_input_ids(args):
@@ -43,20 +43,20 @@ def get_input_ids(args):
     # Set id for next stream
     last_id = response.inputs[-1].id
 
-  print("Total of {} inputs retrieved".format(len(input_ids)))
+  print(f"Total of {len(input_ids)} inputs retrieved")
   return input_ids
 
 
 def split_into_groups(args, input_ids):
   n_groups = args.num_labelers // args.per_group # TODO: consult Michael
   split = np.array_split(input_ids, n_groups)
-  print("Inputs were split in {} groups".format(n_groups))
+  print(f"Inputs were split in {n_groups} groups")
   return split
 
 
 def add_groups_to_metadata(args, split):
   for i, group in enumerate(split):
-    print("Processing group {}...".format(i+1))
+    print(f"Processing group {i+1}...")
 
     # Add group to metadata and patch each input in the group
     for input_id in tqdm(group, total=len(group)):
