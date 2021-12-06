@@ -2,7 +2,6 @@ import argparse
 import utils
 from tqdm import tqdm
 
-from save_annotations import save_annotations_csv
 from save_annotations import add_final_labels_to_metadata
 
 # Import in the Clarifai gRPC based objects needed
@@ -42,13 +41,18 @@ def get_input_ids(metadata):
       meta['video_id'] = meta_['video_id'] if 'video_id' in meta_ else meta_['id']
       meta['description'] = meta_['description'] if 'description' in meta_ else meta_['video_description']
       meta['url'] = meta_['url'] if 'url' in meta_ else meta_['video_url']
+      # if 'group' in meta_:
+      #   meta['group'] = meta_['group']
+      # if 'take' in meta_:
+      #   meta['take'] = meta_['take']
+
       input_ids[json_obj['id']] = meta
   
   logger.info("Input ids fetched. Number of fetched inputs: {}".format(len(input_ids)))
 
   # # ------ DEBUG CODE
   # input_ids_ = {}
-  # for id in list(input_ids.keys())[200:250]:
+  # for id in list(input_ids.keys())[0:50]:
   #   input_ids_[id] = input_ids[id]
   # input_ids = input_ids_
   # print("Number of selected inputs: {}".format(len(input_ids)))
@@ -59,6 +63,8 @@ def get_input_ids(metadata):
 
 def get_annotations(args, metadata, input_ids):
   ''' Get list of annotations for every input id'''
+
+  logger.info("Retrieving annotations...")
 
   annotations = {} # list of concepts
   annotations_meta = {} # store metadata
@@ -120,7 +126,9 @@ def get_annotations(args, metadata, input_ids):
     else:
       annotations[input_id] = [m['concept'] for m in meta if '2-' in m['concept']]
 
-  logger.info("Annotations fetched.")
+  n_annotations = sum([1 for a in annotations if annotations[a]])
+
+  logger.info("Annotations fetched. Number of annotated inputs".format(n_annotations))
   return annotations, annotations_meta
 
 
@@ -138,7 +146,7 @@ def aggregate_annotations(args, input_ids, annotations):
     else:
       aggregated_annotations[input_id] = aggregation
 
-  logger.info("Annotations aggregated.")
+  logger.info("Annotations aggregated. Number of not annotated inputs".format(not_annotated_count))
 
   return aggregated_annotations, not_annotated_count
 
@@ -175,7 +183,7 @@ def compute_consensus(args, input_ids, aggregated_annotations):
         # Store consensus
         consensus[input_id] = [concept for concept, exists in consensus_exists.items() if exists]
 
-  logger.info("Consensus computed.")
+  logger.info("Consensus computed. {} annotation do not have consensus".format(no_consensus_count))
   return consensus, no_consensus_count
 
 
@@ -207,6 +215,7 @@ def patch_metadata(args, input_ids):
 
     for input_id in tqdm(input_ids, total=len(input_ids)):
       input_metadata = Struct()
+      # input_metadata.update({'final_labels': input_ids[input_id]['final_labels']})
       input_metadata.update(input_ids[input_id])
       response = stub.PatchInputs(
         service_pb2.PatchInputsRequest(
@@ -218,16 +227,16 @@ def patch_metadata(args, input_ids):
             )
           ]
         ),
-        metadata=args.metadata
+        metadata=metadata
       )
       utils.process_response(response)
     
-    logger.info("Successfully pathed metadata.")
+    logger.info("Successfully patched metadata.")
 
 
 def main(args, metadata):
 
-  logger.info("----- Patching final labels to {} -----".format(args.tag))
+  logger.info("----- Patching final labels for {} -----".format(args.tag))
 
   # Get input ids
   input_ids, input_count = get_input_ids(metadata)
