@@ -1,17 +1,14 @@
 import argparse
 import os
 import csv
-from tqdm import tqdm
 
 # Import in the Clarifai gRPC based objects needed
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
-from clarifai_grpc.grpc.api import resources_pb2, service_pb2, service_pb2_grpc
+from clarifai_grpc.grpc.api import service_pb2, service_pb2_grpc
 from clarifai_grpc.grpc.api.status import status_code_pb2
-from google.protobuf.json_format import MessageToDict
-from google.protobuf.struct_pb2 import Struct
 
 
-# Construct the communications channel and the object stub to call requests on.
+# Construct the communications channel and the object stub to call requests on
 channel = ClarifaiChannel.get_json_channel()
 stub = service_pb2_grpc.V2Stub(channel)
 
@@ -43,7 +40,7 @@ def get_input_metadata(args):
     else:
       for input in response.inputs:
         # Extract input's metadata
-        meta_ = input['data']['metadata']
+        meta_ = input.data.metadata
         meta = {'video_id': meta_['video_id'],
                 'description': meta_['description'], 
                 'url': meta_['url'],
@@ -60,11 +57,11 @@ def get_input_metadata(args):
 
 def save_annotations_csv(args, input_meta):
     ''' Dump fetched labels to a csv file '''
-    
+
     # Create output dir if needed
     path = os.path.dirname(args.output_file)
     if not os.path.exists(path):
-        os.mkdirs(path)
+      os.makedirs(path)
 
     # Create header
     label_names = sorted(list(list(input_meta.values())[0]['final_labels'].keys()))
@@ -72,19 +69,21 @@ def save_annotations_csv(args, input_meta):
 
     # Write to file
     with open(args.output_file, 'w', encoding='UTF8', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(header)
+      writer = csv.writer(f)
+      writer.writerow(header)
 
-        # Dump labels for every input
-        for input in input_meta.values():
-            info = [input['video_id'], input['description'], input['url']]
-            labels = [input['final_labels'][name] for name in label_names]
-            writer.writerow(info + labels)
+      # Dump labels for every input
+      for input in input_meta.values():
+        if 'final_labels' in input:
+          info = [input['video_id'], input['description'], input['url']]
+          labels = [input['final_labels'][name] for name in label_names]
+          writer.writerow(info + labels)
 
     print("Labels saved to {}".format(args.output_file))
 
 
-def main(args, metadata):
+def main(args):
+  
   # Get input ids
   input_meta = get_input_metadata(args)
 
