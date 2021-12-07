@@ -23,7 +23,7 @@ def process_response(response):
 
 
 def get_input_metadata(args):
-  ''' Get list of all inputs (ids of videos that were uploaded) from the app '''
+  ''' Get metadata of all videos from the app '''
 
   print("Retrieving labels...")
   input_meta = {}
@@ -81,18 +81,18 @@ def main(args):
   # Get input ids
   input_meta = get_input_metadata(args)
 
-  # Write labels to csv file
+  # Write labels to json file
   save_annotations_json(args, input_meta)
 
 
 if __name__ == '__main__':  
-  parser = argparse.ArgumentParser(description="Run tracking.")
+  parser = argparse.ArgumentParser(description="Export final labels to a json file.")
   parser.add_argument('--api_key',
                       default='',
                       help="API key of the application.")  
   parser.add_argument('--output_file', 
                       default='', 
-                      help="Full path (including name and .csv extension), where to export annotations.")                           
+                      help="Full path (including name and .json extension), where to export labels.")                           
                     
   args = parser.parse_args()
   args.metadata = (('authorization', 'Key {}'.format(args.api_key)),)
