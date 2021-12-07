@@ -1,14 +1,15 @@
 import argparse
 import os
-import csv
+import json
 
-# Import in the Clarifai gRPC based objects needed
+# Import the Clarifai gRPC based objects
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
 from clarifai_grpc.grpc.api import service_pb2, service_pb2_grpc
 from clarifai_grpc.grpc.api.status import status_code_pb2
+from google.protobuf import json_format
 
 
-# Construct the communications channel and the object stub to call requests on
+# Construct a communication channel and a stub object to call requests on
 channel = ClarifaiChannel.get_json_channel()
 stub = service_pb2_grpc.V2Stub(channel)
 
@@ -41,43 +42,36 @@ def get_input_metadata(args):
       for input in response.inputs:
         # Extract input's metadata
         meta_ = input.data.metadata
-        meta = {'video_id': meta_['video_id'],
-                'description': meta_['description'], 
-                'url': meta_['url'],
-                'final_labels': meta_['final_labels']
+
+        # Fornat final labels
+        final_labels = json_format.MessageToDict(meta_['final_labels'])
+        final_labels = dict(sorted(final_labels.items()))
+
+        # Store relevant metadata
+        meta = {'video_description': meta_['description'], 
+                'video_url': meta_['url'],
+                'final_labels': final_labels
         }
-        input_meta[input.id] = meta
+        input_meta[meta_['video_id']] = meta
 
     # Set id for next stream
     last_id = response.inputs[-1].id
 
-  print(f"Number of retrieved inputs: {len(input_meta)}")
+  print(f"Number of inputs retrieved from the app: {len(input_meta)}")
   return input_meta
 
 
-def save_annotations_csv(args, input_meta):
-    ''' Dump fetched labels to a csv file '''
+def save_annotations_json(args, input_meta):
+    ''' Dump fetched labels to a json file '''
 
     # Create output dir if needed
     path = os.path.dirname(args.output_file)
     if not os.path.exists(path):
       os.makedirs(path)
 
-    # Create header
-    label_names = sorted(list(list(input_meta.values())[0]['final_labels'].keys()))
-    header = ['video_id', 'description', 'url'] + label_names
-
     # Write to file
-    with open(args.output_file, 'w', encoding='UTF8', newline='') as f:
-      writer = csv.writer(f)
-      writer.writerow(header)
-
-      # Dump labels for every input
-      for input in input_meta.values():
-        if 'final_labels' in input:
-          info = [input['video_id'], input['description'], input['url']]
-          labels = [input['final_labels'][name] for name in label_names]
-          writer.writerow(info + labels)
+    with open(args.output_file, 'w') as f:
+      json.dump(input_meta, f)
 
     print("Labels saved to {}".format(args.output_file))
 
@@ -88,7 +82,7 @@ def main(args):
   input_meta = get_input_metadata(args)
 
   # Write labels to csv file
-  save_annotations_csv(args, input_meta)
+  save_annotations_json(args, input_meta)
 
 
 if __name__ == '__main__':  
