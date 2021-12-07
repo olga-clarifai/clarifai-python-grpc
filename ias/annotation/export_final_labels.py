@@ -43,7 +43,7 @@ def get_input_metadata(args):
         # Extract input's metadata
         meta_ = input.data.metadata
 
-        # Fornat final labels
+        # Format final labels
         final_labels = json_format.MessageToDict(meta_['final_labels'])
         final_labels = dict(sorted(final_labels.items()))
 
@@ -64,7 +64,7 @@ def get_input_metadata(args):
 def save_annotations_json(args, input_meta):
     ''' Dump fetched labels to a json file '''
 
-    # Create output dir if needed
+    # Create output directory if needed
     path = os.path.dirname(args.output_file)
     if not os.path.exists(path):
       os.makedirs(path)
@@ -80,7 +80,6 @@ def main(args):
   
   # Get input ids
   input_meta = get_input_metadata(args)
-
   # Write labels to json file
   save_annotations_json(args, input_meta)
 
