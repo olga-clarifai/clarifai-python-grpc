@@ -52,12 +52,18 @@ def load_meta(args):
     return video_ids
 
 
-def select_videos(video_ids):
+def select_videos(video_ids, videos_path):
     ''' Select specific videos according to criteria '''
 
-    # TODO: write appropriate selection algorithm
+    if videos_path:
+        video_ids_ = {}
+        for video_id in video_ids:
+            video_file = os.path.join(videos_path, video_id + '.mp4')
+            if os.path.exists(video_file):
+                video_ids_[video_id] = video_ids[video_id]
+        video_ids = video_ids_
+        logger.info("Selected {} videos".format(len(video_ids)))
 
-    logger.info("Selected {} videos".format(len(video_ids)))
     return video_ids
 
 
@@ -67,7 +73,7 @@ def main(args):
     video_ids = load_meta(args)
     
     # Select videos according to criteria
-    selected_video_ids = select_videos(video_ids)
+    selected_video_ids = select_videos(video_ids, args.videos_path)
 
     # Save selected ids to a file
     utils.save_data(True, args.out_path, selected_video_ids, args.tag, 'selected_videos')
@@ -81,6 +87,9 @@ if __name__ == '__main__':
     parser.add_argument('--videos_meta', 
                         default='', 
                         help="Path to csv file with ground truth.")     
+    parser.add_argument('--videos_path',
+                        default='',
+                        help="Path to folder with dowloaded videos.")   
     parser.add_argument('--has_gt',
                         default=False,
                         type=lambda x: (str(x).lower() == 'true'),

@@ -3,6 +3,8 @@ import json
 import argparse
 import requests
 import utils
+import random
+from tqdm import tqdm
 
 # Import in the Clarifai gRPC based objects needed
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
@@ -38,12 +40,34 @@ def get_video_ids_to_upload(args, metadata):
 
   # Exclude videos that vere previously uploaded
   previsly_uploaded = get_previously_uploaded_video_ids(metadata)
+  logger.info("Previously uploaded videos: {}".format(len(previsly_uploaded)))  
   video_ids_ = {}
   for video_id in video_ids:
     if not video_id in previsly_uploaded:
       video_ids_[video_id] = video_ids[video_id]
   video_ids = video_ids_
-  logger.info("Videos to upload right now: {}".format(len(video_ids)))     
+
+  # Restrict the number of uploads to respect app limit
+  n_uploads = args.limit - len(previsly_uploaded)
+  if n_uploads > len(video_ids):
+    logger.info("Videos to upload right now: {}".format(len(video_ids)))
+  else:
+    video_ids_ = {}
+    for video_id in video_ids:
+      if len(video_ids_) < n_uploads:
+        video_ids_[video_id] = video_ids[video_id]
+    video_ids = video_ids_
+    logger.info("Videos to upload right now: {}".format(len(video_ids)))
+
+  # Shuffle order of videos if required
+  if args.shuffle:
+    keys = list(video_ids.keys())
+    random.shuffle(keys)
+    video_ids_ = {}
+    for key in keys:
+      video_ids_[key] = video_ids[key]
+    video_ids = video_ids_
+    logger.info("Videos were shuffled before the upload.")  
     
   return video_ids
 
@@ -89,7 +113,7 @@ def upload_videos(video_ids, videos_path):
     failed_video_ids = {}
     success_count = 0
 
-    for i, video_id in enumerate(video_ids):
+    for video_id in tqdm(video_ids, total=len(video_ids)):
       file_bytes = False
       video_file = os.path.join(videos_path, video_id + '.mp4')
 
@@ -133,9 +157,6 @@ def upload_videos(video_ids, videos_path):
         else:
           success_count += 1
 
-      # Progress bar
-      utils.show_progress_bar(i+1, len(video_ids))
-
     logger.info("Uploaded videos: {}".format(success_count))
     return failed_video_ids
 
@@ -169,6 +190,14 @@ if __name__ == '__main__':
   parser.add_argument('--videos_meta', 
                       default='', 
                       help="Path to json file with videos metadata.") 
+  parser.add_argument('--limit', 
+                      default=10642,
+                      type=int, 
+                      help="Maximum number of inputs in the app.")  
+  parser.add_argument('--shuffle',
+                      default=False,
+                      type=lambda x: (str(x).lower() == 'true'),
+                      help="Shuffle video ids before uploading.")                   
   parser.add_argument('--out_path', 
                       default='', 
                       help="Path to general output directory for this script.")

@@ -1,7 +1,9 @@
 import argparse
 import utils
+from tqdm import tqdm
 
-from save_annotations import save_annotations_csv
+from save_labels import save_labels_csv
+from taxonomy import get_taxonomy_object
 
 # Import in the Clarifai gRPC based objects needed
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
@@ -17,7 +19,7 @@ channel = ClarifaiChannel.get_json_channel()
 stub = service_pb2_grpc.V2Stub(channel)
 
 
-def get_input_ids(metadata):
+def get_input_ids(args):
   ''' Get list of all inputs (ids of videos that were uploaded) from the app '''
 
   input_ids = {}
@@ -25,7 +27,7 @@ def get_input_ids(metadata):
   for page in range(1,11):
     list_inputs_response = stub.ListInputs(
                           service_pb2.ListInputsRequest(page=page, per_page=1000),
-                          metadata=metadata
+                          metadata=args.metadata
     )
     utils.process_response(list_inputs_response)
 
@@ -45,7 +47,7 @@ def get_input_ids(metadata):
 
   # # ------ DEBUG CODE
   # input_ids_ = {}
-  # for id in list(input_ids.keys())[200:250]:
+  # for id in list(input_ids.keys())[1800:1850]:
   #   input_ids_[id] = input_ids[id]
   # input_ids = input_ids_
   # print("Number of selected inputs: {}".format(len(input_ids)))
@@ -54,7 +56,7 @@ def get_input_ids(metadata):
   return input_ids, len(input_ids)
 
 
-def get_annotations(args, metadata, input_ids):
+def get_annotations(args, taxonomy, input_ids):
   ''' Get list of annotations for every input id'''
 
   # Variable to check if number of annotations per page is sufficient
@@ -67,14 +69,14 @@ def get_annotations(args, metadata, input_ids):
   annotations_meta = {} # store metadata
 
   # Get annotations for every input id
-  for i, input_id in enumerate(input_ids):
+  for input_id in tqdm(input_ids, total=len(input_ids)):
     list_annotations_response = stub.ListAnnotations(
                                 service_pb2.ListAnnotationsRequest(
                                 input_ids=[input_id], 
                                 per_page=35,
                                 list_all_annotations=True
                                 ),
-      metadata=metadata
+      metadata=args.metadata
     )
     utils.process_response(list_annotations_response)
     # TODO: make requests in batches
@@ -110,31 +112,33 @@ def get_annotations(args, metadata, input_ids):
                                   'duplicates': len(meta_) - len(meta)})
 
     # Extract concepts only
-    if args.broad_consensus:
-      user_annotations = {}
-      for m in meta_:
-        # Extract '2-' only
-        if '2-' in m[0]:
-          annotation = m[0] if m[0] == args.safe_annotation else m[0][0:4] # TODO: eliminate 0:4 notation
-          if m[1] in user_annotations:
-            user_annotations[m[1]].append(annotation)
-          else:
-            user_annotations[m[1]] = [annotation]
+    user_annotations = {}
+    for m in meta_:
+      # Extract only category labels
+      if m[0] not in taxonomy.content:
+        annotation = m[0]
 
-      # Eliminate duplicate concepts within a user      
-      annotation = []
-      for user in user_annotations:
-        annotation += list(set(user_annotations[user]))
-      annotations[input_id] = annotation
+        # Shorten the concept name -> determinate its category
+        for category in taxonomy.categories:
+          if annotation in category.positive:
+            annotation = category.aggr_positive
+          elif annotation in category.safe:
+            annotation = category.aggr_safe
 
-    else:
-      annotations[input_id] = [m['concept'] for m in meta if '2-' in m['concept']]
+        # Add to other annotations from the same user
+        if m[1] in user_annotations:
+          user_annotations[m[1]].append(annotation)
+        else:
+          user_annotations[m[1]] = [annotation]
+
+    # Eliminate duplicate concepts within a user      
+    annotation = []
+    for user in user_annotations:
+      annotation += list(set(user_annotations[user]))
+    annotations[input_id] = annotation
 
     # Update max count variable
     annotation_nb_max = max(annotation_nb_max, len(list_annotations_response.annotations))
-
-    # Progress bar
-    utils.show_progress_bar(i+1, len(input_ids))
 
   logger.info("Annotations fetched.")
   # logger.info("\tMaximum number of annotation entries per input: {}".format(annotation_nb_max))
@@ -159,7 +163,7 @@ def get_annotations(args, metadata, input_ids):
   return annotations, annotations_meta
 
 
-def aggregate_annotations(args, input_ids, annotations):
+def aggregate_annotations(input_ids, annotations):
   ''' Count the number of different annotation labels for every input id'''
 
   aggregated_annotations = {}
@@ -179,7 +183,7 @@ def aggregate_annotations(args, input_ids, annotations):
   return aggregated_annotations, not_annotated_count
 
 
-def compute_consensus(args, input_ids, aggregated_annotations):
+def compute_consensus(taxonomy, input_ids, aggregated_annotations):
   ''' Compute consensus among annotations for every input id based on aggregation'''
 
   # Variable to count how many times no full consensus has been reached
@@ -193,6 +197,7 @@ def compute_consensus(args, input_ids, aggregated_annotations):
   consensus = {}
   for input_id in input_ids:
       if input_id in aggregated_annotations:
+
         # Compute consensus
         aa = aggregated_annotations[input_id]
         consensus_exists = {k:consesus_fun(v) for k, v in aa.items()}
@@ -205,11 +210,12 @@ def compute_consensus(args, input_ids, aggregated_annotations):
 
         # If conflict between consenuses exist,
         # keep only positive consensus
-        if any(v for k, v in consensus_exists.items() if k in args.positive_annotations) and \
-           args.safe_annotation in consensus_exists and consensus_exists[args.safe_annotation]:
-            # Save only consensus for positive annotations
-            consensus_exists.pop(args.safe_annotation)
-            conflict_ids.append(input_id)
+        for category in taxonomy.categories:
+          if any(v for k, v in consensus_exists.items() if k == category.aggr_positive) and \
+            consensus_exists.get(category.aggr_safe, False):
+              # Save only consensus for positive annotations
+              consensus_exists.pop(category.aggr_safe)
+              conflict_ids.append(input_id)
        
         # Store consensus
         consensus[input_id] = [concept for concept, exists in consensus_exists.items() if exists]
@@ -218,23 +224,25 @@ def compute_consensus(args, input_ids, aggregated_annotations):
   return consensus, no_consensus_count, conflict_ids
 
 
-def assign_classes(args, input_ids, consensus):
+def assign_classes(taxonomy, input_ids, consensus):
   ''' Assign class to each input/category pair: 
-      Labels _LP_ (positive), _LN_ (negative), _LS_ (safe) '''
+      _LP_ (positive), _LN_ (negative), _LS_ (safe) '''
 
   classes = {}
   for input_id in input_ids:
-    
     # Assign classes
     if input_id in consensus:
       classes_ = {}
-      for annotation in args.positive_annotations:
+      for category in taxonomy.categories:
         if consensus[input_id] is None:
-          classes_[annotation] = '_LN_'
-        elif annotation in consensus[input_id]:
-          classes_[annotation] = '_LP_'
-        elif args.safe_annotation in consensus[input_id]:
-          classes_[annotation] = '_LS_'
+          classes_[category.name] = '_LN_'
+        else:
+          if category.aggr_positive in consensus[input_id]:
+            classes_[category.name] = '_LP_'
+          elif category.aggr_safe in consensus[input_id]:
+            classes_[category.name] = '_LS_'
+          else:
+            classes_[category.name] = '_LN_'
       classes[input_id] = classes_
     else:
       classes[input_id] = None
@@ -243,46 +251,46 @@ def assign_classes(args, input_ids, consensus):
   return classes
 
 
-def compute_totals(args, input_ids, classes):
+def compute_totals(taxonomy, input_ids, classes):
   ''' Compute total number of inputs for each class '''
 
   totals = {}
 
-  # For every category (annotation)
-  for annotation in args.positive_annotations:
+  # For every category
+  for category in taxonomy.categories:
     totals_ = {'_LP_': 0, '_LN_': 0, '_LS_': 0}
 
     for input_id in input_ids:
       if input_id in classes and classes[input_id] is not None:
-        if '_LP_' in classes[input_id][annotation]:
+        if '_LP_' in classes[input_id][category.name]:
           totals_['_LP_'] += 1
-        if '_LN_' in classes[input_id][annotation]:
+        if '_LN_' in classes[input_id][category.name]:
           totals_['_LN_'] += 1
-        if '_LS_' in classes[input_id][annotation]:
+        if '_LS_' in classes[input_id][category.name]:
           totals_['_LS_'] += 1
-    totals[annotation] = totals_
+    totals[category.name] = totals_
 
   logger.info("Totals computed.")
   return totals
   
 
-def compute_distribution(annotations_meta):
+def compute_distribution(taxonomy, annotations_meta):
   ''' Compute number of occurrences for each label sub-category '''
 
-  # Number of '1-' and '2-' duplicates
-  duplicates_count = {'1-': 0, '2-': 0}
+  # Number of content and category duplicates
+  duplicates_count = {'content': 0, 'category': 0}
   # Dictionary of all labels with number of their occurrences
-  labels_count = {'1-': {}, '2-': {}}
+  labels_count = {'content': {}, 'category': {}}
 
   for meta in annotations_meta.values():
 
     # Count all labels
     labels = [m['concept'] for m in meta]
     for label in labels:
-      if '1-' in label:
-        labels_count['1-'][label] = labels_count['1-'][label] + 1 if label in labels_count['1-'] else 1
-      elif '2-' in label:
-        labels_count['2-'][label] = labels_count['2-'][label] + 1 if label in labels_count['2-'] else 1
+      if label in taxonomy.content:
+        labels_count['content'][label] = labels_count['content'][label] + 1 if label in labels_count['content'] else 1
+      else:
+        labels_count['category'][label] = labels_count['category'][label] + 1 if label in labels_count['category'] else 1
 
     # Change format to {user: [list of labels]}
     user_labels = {}
@@ -292,32 +300,35 @@ def compute_distribution(annotations_meta):
       else:
         user_labels[m['userId']] = [m['concept']]
 
-    # Compute number of '1-' duplicates
-    for user, label in user_labels.items():
-      tmp1 = [a for a in label if '1-' in a]
-      tmp2 = list(set([a[0:4] for a in label if '1-' in a]))
-      duplicates_count['1-'] += len(tmp1) - len(tmp2)
+    # Compute number of content duplicates
+    for _, labels in user_labels.items():
+      count = sum([1 for l in labels if l in taxonomy.content])
+      duplicates_count['content'] += count-1 if count else 0
 
-    # Compute number of '2-' duplicates
-    for user, label in user_labels.items():
-      tmp1 = [a for a in label if '2-' in a]
-      tmp2 = list(set([a[0:4] for a in label if '2-' in a]))
-      duplicates_count['2-'] += len(tmp1) - len(tmp2)
+    # Compute number of category duplicates
+    for _, label in user_labels.items():
+      counts = []
+      for category in taxonomy.categories:
+        counts.append(sum([1 for l in labels if l in category.positive]))
+      duplicates_count['category'] += sum(counts) - sum(c > 0 for c in counts)
 
-  # Total number of '1-' labels and '2-' labels 
-  labels_total = {'1-': sum([v for k, v in labels_count['1-'].items() if '1-' in k]),
-                  '2-': sum([v for k, v in labels_count['2-'].items() if '2-' in k])}
+  # Total number of content labels and category labels 
+  labels_total = {'content': sum([v for k, v in labels_count['content'].items()]),
+                  'category': sum([v for k, v in labels_count['category'].items()])}
 
   # Percentage distribution of labels
-  labels_distr = {'1-': {k: (v*100.0)/labels_total['1-'] for k, v in labels_count['1-'].items() if '1-' in k},
-                  '2-': {k: (v*100.0)/labels_total['2-'] for k, v in labels_count['2-'].items() if '2-' in k}}
+  content_distr, category_distr = {}, {}
+  for k, v in labels_count['content'].items():
+    content_distr[k] = (v*100.0)/labels_total['content']
+  for k, v in labels_count['category'].items():
+    category_distr[k] = (v*100.0)/labels_total['category']
+  labels_distr = {'content': content_distr, 'category': category_distr}    
 
   logger.info("Distributiuons computed.")
-
   return labels_count, labels_distr, labels_total, duplicates_count
 
     
-def plot_results(args, input_count, not_annotated_count, no_consensus_count, totals,
+def plot_results(taxonomy, input_count, not_annotated_count, no_consensus_count, totals,
                  labels_count, labels_distr, labels_total, duplicates_count, conflict_count):
     ''' Print results in the console '''
     
@@ -327,27 +338,33 @@ def plot_results(args, input_count, not_annotated_count, no_consensus_count, tot
     print("In conflict: {}".format(conflict_count))
     print("\n--------------------------------------------------")
 
-    # Print total count for every category (annotation)
-    for annotation in args.positive_annotations:
+    # Print total count for every category
+    for category in taxonomy.categories:
       print("{} --- Positives: {} | Negatives: {} | Safe: {}".
-            format(annotation, totals[annotation]['_LP_'], totals[annotation]['_LN_'], totals[annotation]['_LS_']))
+            format(category.aggr_positive, totals[category.name]['_LP_'], totals[category.name]['_LN_'], totals[category.name]['_LS_']))
     print("--------------------------------------------------\n")
 
-    # Print distribution of '1-' labels
-    for label in sorted(labels_distr['1-'].keys()):
-      print("{:.2f} % ({})\t {}".format(labels_distr['1-'][label], labels_count['1-'][label], label))
+    # Print distribution of content labels
+    for label in sorted(labels_distr['content'].keys()):
+      print("{:.2f} % ({})\t {}".
+            format(labels_distr['content'][label], labels_count['content'][label], label))
     print("--------------------------------------------------")
     print("Total number: {} | Duplicates: {:.2f} % ({})".
-          format(labels_total['1-'], (duplicates_count['1-']*100)/labels_total['1-'], duplicates_count['1-']))
+          format(labels_total['content'], 
+                 (duplicates_count['content']*100)/labels_total['content'], 
+                 duplicates_count['content']))
 
     print("\n")   
 
-    # Print distribution of '2-' labels
-    for label in sorted(labels_distr['2-'].keys()):
-      print("{:.2f} % ({})\t {}".format(labels_distr['2-'][label], labels_count['2-'][label], label))
+    # Print distribution of category labels
+    for label in sorted(labels_distr['category'].keys()):
+      print("{:.2f} % ({})\t {}".
+            format(labels_distr['category'][label], labels_count['category'][label], label))
     print("--------------------------------------------------")
     print("Total number: {} | Duplicates: {:.2f} % ({})".
-          format(labels_total['2-'], (duplicates_count['2-']*100)/labels_total['2-'], duplicates_count['2-']))   
+          format(labels_total['category'], 
+                 (duplicates_count['category']*100)/labels_total['category'], 
+                 duplicates_count['category']))   
 
     print("\n**************************************************\n")
     
@@ -358,9 +375,8 @@ def get_conflicting_annotations(input_ids, conflict_ids, annotations_meta, conse
   conflicts = {}
   for input_id in conflict_ids:
 
-    # Get initial information minus some fields
+    # Get initial information
     input = input_ids[input_id]
-    [input.pop(key) for key in ['results', 'source-file-line', 'group'] if key in input]
 
     # Add information about results
     input['consensus'] = consensus[input_id]
@@ -376,33 +392,36 @@ def get_conflicting_annotations(input_ids, conflict_ids, annotations_meta, conse
   return conflicts
 
 
-def main(args, metadata):
+def main(args):
 
   logger.info("----- Experiment {} running -----".format(args.tag))
 
+  # Get taxonomy for current experiment
+  taxonomy = get_taxonomy_object(args.group)
+
   # Get input ids
-  input_ids, input_count = get_input_ids(metadata)
+  input_ids, input_count = get_input_ids(args)
 
   # Get annotations for every id together with their aggregations
-  annotations, annotations_meta = get_annotations(args, metadata, input_ids)
-  aggregated_annotations, not_annotated_count = aggregate_annotations(args, input_ids, annotations)
+  annotations, annotations_meta = get_annotations(args, taxonomy, input_ids)
+  aggregated_annotations, not_annotated_count = aggregate_annotations(input_ids, annotations)
 
   # Compute consensus
-  consensus, no_consensus_count, conflict_ids = compute_consensus(args, input_ids, aggregated_annotations)
+  consensus, no_consensus_count, conflict_ids = compute_consensus(taxonomy, input_ids, aggregated_annotations)
 
   # Compute results
-  classes = assign_classes(args, input_ids, consensus)
-  totals = compute_totals(args, input_ids, classes)
+  classes = assign_classes(taxonomy, input_ids, consensus)
+  totals = compute_totals(taxonomy, input_ids, classes)
 
   # Compute distirbution of different annotations
-  labels_count, labels_distr, labels_total, duplicates_count = compute_distribution(annotations_meta)
+  labels_count, labels_distr, labels_total, duplicates_count = compute_distribution(taxonomy, annotations_meta)
 
   # Plot statistics using computed values
-  plot_results(args, input_count, not_annotated_count, no_consensus_count, totals,
+  plot_results(taxonomy, input_count, not_annotated_count, no_consensus_count, totals,
                labels_count, labels_distr, labels_total, duplicates_count, len(conflict_ids))
 
   # Save annotations in csv file
-  save_annotations_csv(args, input_ids, classes, 'annotations')
+  save_labels_csv(args, input_ids, classes, 'labels')
 
   if conflict_ids:
     conflicts = get_conflicting_annotations(input_ids, conflict_ids, annotations_meta, consensus)
@@ -422,36 +441,20 @@ if __name__ == '__main__':
                       help="Name of the group.")  
   parser.add_argument('--tag',
                       default='',
-                      help="Name of the process/application.")                  
-  parser.add_argument('--broad_consensus',
-                      default=True,
-                      type=lambda x: (str(x).lower() == 'true'),
-                      help="Attempt to allow for a broad consensus (i.e. multiple hate speech labels all pool to hate speech.")                
+                      help="Name of the process/application.")                                
   parser.add_argument('--out_path', 
                       default='', 
                       help="Path to general output directory for this script.")
-  parser.add_argument('--save_annotations',
+  parser.add_argument('--save_labels',
                       default=True,
                       type=lambda x: (str(x).lower() == 'true'),
-                      help="Save annotations in csv file or not.")
+                      help="Save labels in csv file or not.")
   parser.add_argument('--save_conflicts',
                       default=True,
                       type=lambda x: (str(x).lower() == 'true'),
                       help="Save information about annotations with conflicting consensus.")
 
   args = parser.parse_args()
-  args.tag = args.tag + '_' + args.group
+  args.metadata = (('authorization', 'Key {}'.format(args.api_key)),)
 
-  metadata = (('authorization', 'Key {}'.format(args.api_key)),)
-
-  # Hate Speech
-  if args.group == 'Hate_Speech':
-    args.positive_annotations = ['2-HB']
-    args.safe_annotation = '2-not-hate'
-
-  # Group 1
-  elif args.group == 'Group_1':
-    args.positive_annotations = ['2-AD', '2-OP', '2-ID']
-    args.safe_annotation = '2-none-of-the-above'
-
-  main(args, metadata)
+  main(args)
