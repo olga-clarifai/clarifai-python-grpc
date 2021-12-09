@@ -4,3 +4,7 @@ dist/
 build/
 *.egg-info
 .pytest_cache/
+.vscode/
+*.DS_Store
+ias/annotation/input/
+ias/annotation/output/
