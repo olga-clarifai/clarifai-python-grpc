@@ -31,7 +31,7 @@ def save_labels_csv(args, input_ids, classes, name):
         logging.info("Annotation saved to {}".format(file_path))
 
 
-def add_final_labels_to_metadata(taxonomy, input_ids, classes):
+def add_final_labels_to_metadata(input_ids, classes):
     ''' Add labels to inputs metadata '''    
 
     for input_id in input_ids:

@@ -2,12 +2,12 @@ import argparse
 import utils
 from tqdm import tqdm
 
-from save_annotations import add_final_labels_to_metadata
+from save_labels import add_final_labels_to_metadata
+from taxonomy import get_taxonomy_object
 
 # Import in the Clarifai gRPC based objects needed
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2, service_pb2_grpc
-from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
 from google.protobuf.struct_pb2 import Struct
 
@@ -19,7 +19,7 @@ channel = ClarifaiChannel.get_json_channel()
 stub = service_pb2_grpc.V2Stub(channel)
 
 
-def get_input_ids(metadata):
+def get_input_ids(args):
   ''' Get list of all inputs (ids of videos that were uploaded) from the app '''
 
   input_ids = {}
@@ -27,7 +27,7 @@ def get_input_ids(metadata):
   for page in range(1,11):
     list_inputs_response = stub.ListInputs(
                           service_pb2.ListInputsRequest(page=page, per_page=1000),
-                          metadata=metadata
+                          metadata=args.metadata
     )
     utils.process_response(list_inputs_response)
 
@@ -41,11 +41,6 @@ def get_input_ids(metadata):
       meta['video_id'] = meta_['video_id'] if 'video_id' in meta_ else meta_['id']
       meta['description'] = meta_['description'] if 'description' in meta_ else meta_['video_description']
       meta['url'] = meta_['url'] if 'url' in meta_ else meta_['video_url']
-      # if 'group' in meta_:
-      #   meta['group'] = meta_['group']
-      # if 'take' in meta_:
-      #   meta['take'] = meta_['take']
-
       input_ids[json_obj['id']] = meta
   
   logger.info("Input ids fetched. Number of fetched inputs: {}".format(len(input_ids)))
@@ -61,7 +56,7 @@ def get_input_ids(metadata):
   return input_ids, len(input_ids)
 
 
-def get_annotations(args, metadata, input_ids):
+def get_annotations(args, taxonomy, input_ids):
   ''' Get list of annotations for every input id'''
 
   logger.info("Retrieving annotations...")
@@ -77,7 +72,7 @@ def get_annotations(args, metadata, input_ids):
                                 per_page=35,
                                 list_all_annotations=True
                                 ),
-      metadata=metadata
+      metadata=args.metadata
     )
     utils.process_response(list_annotations_response)
     # TODO: make requests in batches
@@ -106,16 +101,24 @@ def get_annotations(args, metadata, input_ids):
     annotations_meta[input_id] = meta
 
     # Extract concepts only
-    if args.broad_consensus:
-      user_annotations = {}
-      for m in meta_:
-        # Extract '2-' only
-        if '2-' in m[0]:
-          annotation = m[0] if m[0] == args.safe_annotation else m[0][0:4] # TODO: eliminate 0:4 notation
-          if m[1] in user_annotations:
-            user_annotations[m[1]].append(annotation)
-          else:
-            user_annotations[m[1]] = [annotation]
+    user_annotations = {}
+    for m in meta_:
+      # Extract only category labels
+      if m[0] not in taxonomy.content:
+        annotation = m[0]
+
+        # Shorten the concept name -> determinate its category
+        for category in taxonomy.categories:
+          if annotation in category.positive:
+            annotation = category.aggr_positive
+          elif annotation in category.safe:
+            annotation = category.aggr_safe
+
+        # Add to other annotations from the same user
+        if m[1] in user_annotations:
+          user_annotations[m[1]].append(annotation)
+        else:
+          user_annotations[m[1]] = [annotation]
 
       # Eliminate duplicate concepts within a user      
       annotation = []
@@ -123,16 +126,12 @@ def get_annotations(args, metadata, input_ids):
         annotation += list(set(user_annotations[user]))
       annotations[input_id] = annotation
 
-    else:
-      annotations[input_id] = [m['concept'] for m in meta if '2-' in m['concept']]
-
   n_annotations = sum([1 for a in annotations if annotations[a]])
-
-  logger.info("Annotations fetched. Number of annotated inputs".format(n_annotations))
+  logger.info("Annotations fetched. Number of annotated inputs: ".format(n_annotations))
   return annotations, annotations_meta
 
 
-def aggregate_annotations(args, input_ids, annotations):
+def aggregate_annotations(input_ids, annotations):
   ''' Count the number of different annotation labels for every input id'''
 
   aggregated_annotations = {}
@@ -151,7 +150,7 @@ def aggregate_annotations(args, input_ids, annotations):
   return aggregated_annotations, not_annotated_count
 
 
-def compute_consensus(args, input_ids, aggregated_annotations):
+def compute_consensus(taxonomy, input_ids, aggregated_annotations):
   ''' Compute consensus among annotations for every input id based on aggregation'''
 
   # Variable to count how many times no full consensus has been reached
@@ -175,10 +174,11 @@ def compute_consensus(args, input_ids, aggregated_annotations):
 
         # If conflict between consenuses exist,
         # keep only positive consensus
-        if any(v for k, v in consensus_exists.items() if k in args.positive_annotations) and \
-           args.safe_annotation in consensus_exists and consensus_exists[args.safe_annotation]:
-            # Save only consensus for positive annotations
-            consensus_exists.pop(args.safe_annotation)
+        for category in taxonomy.categories:
+          if any(v for k, v in consensus_exists.items() if k == category.aggr_positive) and \
+            consensus_exists.get(category.aggr_safe, False):
+              # Save only consensus for positive annotations
+              consensus_exists.pop(category.aggr_safe)
        
         # Store consensus
         consensus[input_id] = [concept for concept, exists in consensus_exists.items() if exists]
@@ -187,7 +187,7 @@ def compute_consensus(args, input_ids, aggregated_annotations):
   return consensus, no_consensus_count
 
 
-def assign_classes(args, input_ids, consensus):
+def assign_classes(taxonomy, input_ids, consensus):
   ''' Assign class to each input/category pair: P (positive), N (negative), S (safe) '''
 
   classes = {}
@@ -196,13 +196,16 @@ def assign_classes(args, input_ids, consensus):
     # Assign classes
     if input_id in consensus:
       classes_ = {}
-      for annotation in args.positive_annotations:
+      for category in taxonomy.categories:
         if consensus[input_id] is None:
-          classes_[annotation] = 'N'
-        elif annotation in consensus[input_id]:
-          classes_[annotation] = 'P'
-        elif args.safe_annotation in consensus[input_id]:
-          classes_[annotation] = 'S'
+          classes_[category.name] = 'N'
+        else:
+          if category.aggr_positive in consensus[input_id]:
+            classes_[category.name] = 'P'
+          elif category.aggr_safe in consensus[input_id]:
+            classes_[category.name] = 'S'
+          else:
+            classes_[category.name] = 'N'
       classes[input_id] = classes_
     else:
       classes[input_id] = None
@@ -227,29 +230,32 @@ def patch_metadata(args, input_ids):
             )
           ]
         ),
-        metadata=metadata
+        metadata=args.metadata
       )
       utils.process_response(response)
     
     logger.info("Successfully patched metadata.")
 
 
-def main(args, metadata):
+def main(args):
 
   logger.info("----- Patching final labels for {} -----".format(args.tag))
 
+  # Get taxonomy for current experiment
+  taxonomy = get_taxonomy_object(args.group)
+
   # Get input ids
-  input_ids, input_count = get_input_ids(metadata)
+  input_ids, _ = get_input_ids(args)
 
   # Get annotations for every id together with their aggregations
-  annotations, annotations_meta = get_annotations(args, metadata, input_ids)
-  aggregated_annotations, not_annotated_count = aggregate_annotations(args, input_ids, annotations)
+  annotations, _ = get_annotations(args, taxonomy, input_ids)
+  aggregated_annotations, _ = aggregate_annotations(input_ids, annotations)
 
   # Compute consensus
-  consensus, no_consensus_count = compute_consensus(args, input_ids, aggregated_annotations)
+  consensus, _ = compute_consensus(taxonomy, input_ids, aggregated_annotations)
 
   # Assign positive, negative or safe class according to consensus
-  classes = assign_classes(args, input_ids, consensus)
+  classes = assign_classes(taxonomy, input_ids, consensus)
 
   # Add final labels to inputs metadata
   input_ids = add_final_labels_to_metadata(input_ids, classes)
@@ -269,25 +275,8 @@ if __name__ == '__main__':
   parser.add_argument('--tag',
                       default='',
                       help="Name of the process/application.")                  
-  parser.add_argument('--broad_consensus',
-                      default=True,
-                      type=lambda x: (str(x).lower() == 'true'),
-                      help="Attempt to allow for a broad consensus (i.e. multiple hate speech labels all pool to hate speech.")                
-                    
 
   args = parser.parse_args()
-  args.tag = args.tag + '_' + args.group
+  args.metadata = (('authorization', 'Key {}'.format(args.api_key)),)
 
-  metadata = (('authorization', 'Key {}'.format(args.api_key)),)
-
-  # Hate Speech
-  if args.group == 'Hate_Speech':
-    args.positive_annotations = ['2-HB']
-    args.safe_annotation = '2-not-hate'
-
-  # Group 1
-  elif args.group == 'Group_1':
-    args.positive_annotations = ['2-AD', '2-OP', '2-ID']
-    args.safe_annotation = '2-none-of-the-above'
-
-  main(args, metadata)
+  main(args)
