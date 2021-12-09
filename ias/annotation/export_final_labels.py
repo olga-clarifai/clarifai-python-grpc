@@ -43,21 +43,22 @@ def get_input_metadata(args):
         # Extract input's metadata
         meta_ = input.data.metadata
 
-        # Format final labels
-        final_labels = json_format.MessageToDict(meta_['final_labels'])
-        final_labels = dict(sorted(final_labels.items()))
+        # Extract and format final labels
+        if 'final_labels' in meta_:
+          final_labels = json_format.MessageToDict(meta_['final_labels'])
+          final_labels = dict(sorted(final_labels.items()))
 
-        # Store relevant metadata
-        meta = {'video_description': meta_['description'], 
-                'video_url': meta_['url'],
-                'final_labels': final_labels
-        }
-        input_meta[meta_['video_id']] = meta
+          # Store relevant metadata
+          meta = {'video_description': meta_['description'], 
+                  'video_url': meta_['url'],
+                  'final_labels': final_labels
+          }
+          input_meta[meta_['video_id']] = meta
 
     # Set id for next stream
     last_id = response.inputs[-1].id
 
-  print(f"Number of inputs retrieved from the app: {len(input_meta)}")
+  print(f"Number of inputs in the app, containing 'final_labels' field in metadata: {len(input_meta)}")
   return input_meta
 
 
@@ -81,7 +82,10 @@ def main(args):
   # Get input ids
   input_meta = get_input_metadata(args)
   # Write labels to json file
-  save_annotations_json(args, input_meta)
+  if input_meta:
+    save_annotations_json(args, input_meta)
+  else:
+    print("No labels to save.")
 
 
 if __name__ == '__main__':  
