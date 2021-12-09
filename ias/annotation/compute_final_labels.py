@@ -120,14 +120,14 @@ def get_annotations(args, taxonomy, input_ids):
         else:
           user_annotations[m[1]] = [annotation]
 
-      # Eliminate duplicate concepts within a user      
-      annotation = []
-      for user in user_annotations:
-        annotation += list(set(user_annotations[user]))
-      annotations[input_id] = annotation
+    # Eliminate duplicate concepts within a user      
+    annotation = []
+    for user in user_annotations:
+      annotation += list(set(user_annotations[user]))
+    annotations[input_id] = annotation
 
   n_annotations = sum([1 for a in annotations if annotations[a]])
-  logger.info("Annotations fetched. Number of annotated inputs: ".format(n_annotations))
+  logger.info("Annotations fetched. Number of annotated inputs: {}".format(n_annotations))
   return annotations, annotations_meta
 
 
