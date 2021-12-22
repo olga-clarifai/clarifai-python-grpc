@@ -97,29 +97,32 @@ def upload_videos_by_content(args, video_ids):
         input_meta = Struct()
         input_meta.update(video_ids[video_id])
 
-        # Make request
-        post_inputs_response = stub.PostInputs(
-          service_pb2.PostInputsRequest(
-            inputs=[
-              resources_pb2.Input(
-                id=video_id,
-                data=resources_pb2.Data(
-                  video=resources_pb2.Video(base64=content),
-                  metadata=input_meta
+        try: 
+          # Make request
+          post_inputs_response = stub.PostInputs(
+            service_pb2.PostInputsRequest(
+              inputs=[
+                resources_pb2.Input(
+                  id=video_id,
+                  data=resources_pb2.Data(
+                    video=resources_pb2.Video(base64=content),
+                    metadata=input_meta
+                  )
                 )
-              )
-            ]
-          ),
-          metadata=args.metadata
-        )    
+              ]
+            ),
+            metadata=args.metadata
+          )    
 
-        # Process response and check if videos is hosted
-        success = False
-        if post_inputs_response.status.code == status_code_pb2.SUCCESS:
-          if check_upload(args, video_id):
-            success = True
-            success_count += 1 
-            break 
+          # Process response and check if videos is hosted
+          success = False
+          if post_inputs_response.status.code == status_code_pb2.SUCCESS:
+            if check_upload(args, video_id):
+              success = True
+              success_count += 1 
+              break 
+        except:
+          success = False
 
         # If not hosted, delete correspoding input
         if not success:  
