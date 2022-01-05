@@ -2,8 +2,10 @@ import sys
 import os
 import logging
 import json
+from taxonomy import SPECIAL_USE_LABELS
 
 from clarifai_grpc.grpc.api.status import status_code_pb2
+from clarifai_grpc.grpc.api import service_pb2
 
 
 def setup_logging():
@@ -37,7 +39,28 @@ def get_response_if_failed(response):
                 'details': response.status.details}
     else:
         return False
-  
+
+
+def special_labels_present(stub, metadata):
+  ''' Check if special use labels are available for labelers in the app'''
+
+  list_concepts_response = stub.ListConcepts(
+    service_pb2.ListConceptsRequest(),
+    metadata=metadata
+  )
+
+  concepts = []
+  for concept in list_concepts_response.concepts:
+    concepts.append(concept.name)
+
+  if not get_response_if_failed(list_concepts_response):
+      if all(label in concepts for label in SPECIAL_USE_LABELS.keys()):
+        return True
+      else:
+        return False
+  else:
+    return False  
+
 
 def save_data(to_save, out_path, data, tag, name):
   ''' Dump provided data to a json file '''

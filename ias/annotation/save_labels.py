@@ -3,7 +3,7 @@ import csv
 import logging
 import taxonomy
 
-def save_labels_csv(args, input_ids, classes, name):
+def save_labels_csv(args, input_ids, classes, name, special_labels=None):
     ''' Dump labels to a csv file '''
     
     if args.save_labels:
@@ -21,21 +21,29 @@ def save_labels_csv(args, input_ids, classes, name):
             writer = csv.writer(f)
             header = ['input_id', 'video_id', 'video_description', 'video_url'] + \
                       list(taxonomy.CATEGORY_IDX.keys())
+            if special_labels:
+                header += taxonomy.SPECIAL_USE_LABELS.values()
             writer.writerow(header)
 
             # Dump labels for every input
             for input_id in input_ids:
                 row = _from_input_to_output(input_id, input_ids[input_id], classes[input_id])
+                if special_labels:
+                    row += special_labels[input_id].values()
                 writer.writerow(row)
 
         logging.info("Annotation saved to {}".format(file_path))
 
 
-def add_final_labels_to_metadata(input_ids, classes):
+def add_final_labels_to_metadata(input_ids, classes, special_labels=None):
     ''' Add labels to inputs metadata '''    
 
     for input_id in input_ids:
-        input_ids[input_id]['final_labels'] = _from_classes_to_meta_labels(classes[input_id])
+        final_labels = _from_classes_to_meta_labels(classes[input_id])
+        if special_labels:
+            special_labels_ = {taxonomy.SPECIAL_USE_LABELS[label]: num for label, num in special_labels[input_id].items()}
+            final_labels = {**final_labels, **special_labels_}
+        input_ids[input_id]['final_labels'] = final_labels
     
     logging.info("Final labels added to inputs metadata.")
     return input_ids

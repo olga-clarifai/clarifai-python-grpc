@@ -3,7 +3,7 @@ import utils
 from tqdm import tqdm
 
 from save_labels import add_final_labels_to_metadata
-from taxonomy import get_taxonomy_object
+from taxonomy import get_taxonomy_object, SPECIAL_USE_LABELS
 
 # Import in the Clarifai gRPC based objects needed
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
@@ -47,7 +47,7 @@ def get_input_ids(args):
 
   # # ------ DEBUG CODE
   # input_ids_ = {}
-  # for id in list(input_ids.keys())[0:50]:
+  # for id in list(input_ids.keys())[200:250]:
   #   input_ids_[id] = input_ids[id]
   # input_ids = input_ids_
   # print("Number of selected inputs: {}".format(len(input_ids)))
@@ -63,6 +63,12 @@ def get_annotations(args, taxonomy, input_ids):
 
   annotations = {} # list of concepts
   annotations_meta = {} # store metadata
+  special_labels = {} # number of labelers assigned special labels
+
+  if utils.special_labels_present(stub, args.metadata):
+    special_labels_default = None
+  else:
+    special_labels_default = {label: 'n/a' for label in SPECIAL_USE_LABELS.key()}
 
   # Get annotations for every input id
   for input_id in tqdm(input_ids, total=len(input_ids)):
@@ -100,7 +106,7 @@ def get_annotations(args, taxonomy, input_ids):
     meta = [{'concept': m[0], 'userId': m[1]} for m in meta]
     annotations_meta[input_id] = meta
 
-    # Extract concepts only
+    # ------- Extract concepts
     user_annotations = {}
     for m in meta_:
       # Extract only category labels
@@ -126,9 +132,19 @@ def get_annotations(args, taxonomy, input_ids):
       annotation += list(set(user_annotations[user]))
     annotations[input_id] = annotation
 
+    # ------- Extract special use labels
+    if special_labels_default: # special labels are not available in the app
+      special_labels[input_id] = special_labels_default
+    else:
+      special_labels_ = {label: 0 for label in SPECIAL_USE_LABELS.keys()}
+      for m in meta:
+        if m['concept'] in SPECIAL_USE_LABELS:
+          special_labels_[m['concept']] += 1
+      special_labels[input_id] = special_labels_
+
   n_annotations = sum([1 for a in annotations if annotations[a]])
   logger.info("Annotations fetched. Number of annotated inputs: {}".format(n_annotations))
-  return annotations, annotations_meta
+  return annotations, annotations_meta, special_labels
 
 
 def aggregate_annotations(input_ids, annotations):
@@ -239,7 +255,7 @@ def patch_metadata(args, input_ids):
 
 def main(args):
 
-  logger.info("----- Patching final labels for {} -----".format(args.tag))
+  logger.info("----- Patching final labels -----")
 
   # Get taxonomy for current experiment
   taxonomy = get_taxonomy_object(args.group)
@@ -248,7 +264,7 @@ def main(args):
   input_ids, _ = get_input_ids(args)
 
   # Get annotations for every id together with their aggregations
-  annotations, _ = get_annotations(args, taxonomy, input_ids)
+  annotations, _, special_labels = get_annotations(args, taxonomy, input_ids)
   aggregated_annotations, _ = aggregate_annotations(input_ids, annotations)
 
   # Compute consensus
@@ -258,7 +274,7 @@ def main(args):
   classes = assign_classes(taxonomy, input_ids, consensus)
 
   # Add final labels to inputs metadata
-  input_ids = add_final_labels_to_metadata(input_ids, classes)
+  input_ids = add_final_labels_to_metadata(input_ids, classes, special_labels)
   patch_metadata(args, input_ids)
 
 
@@ -271,10 +287,7 @@ if __name__ == '__main__':
   parser.add_argument('--group',
                       default='Hate_Speech',
                       choices={'Hate_Speech', 'Group_1'},
-                      help="Name of the group.")  
-  parser.add_argument('--tag',
-                      default='',
-                      help="Name of the process/application.")                  
+                      help="Name of the group.")                   
 
   args = parser.parse_args()
   args.metadata = (('authorization', 'Key {}'.format(args.api_key)),)

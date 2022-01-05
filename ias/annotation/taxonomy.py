@@ -81,6 +81,10 @@ TAXONOMY = {'categories': {
             }
 }
 
+SPECIAL_USE_LABELS = {'1-CT-nottarget-or-english': 'not_targetted_language_or_english',
+                      '1-CT-dontunderstand-english': 'dont_understand_english',
+                      '1-video-unavailable': 'video_unvailable'}
+
 GROUPS = {'Hate_Speech': ['hate'],
           'Group_1': ['adult', 'drugs']}
 

@@ -3,7 +3,7 @@ import utils
 from tqdm import tqdm
 
 from save_labels import save_labels_csv
-from taxonomy import get_taxonomy_object
+from taxonomy import get_taxonomy_object, SPECIAL_USE_LABELS
 
 # Import in the Clarifai gRPC based objects needed
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
@@ -46,7 +46,7 @@ def get_input_ids(args):
 
   # # ------ DEBUG CODE
   # input_ids_ = {}
-  # for id in list(input_ids.keys())[1800:1850]:
+  # for id in list(input_ids.keys())[200:250]:
   #   input_ids_[id] = input_ids[id]
   # input_ids = input_ids_
   # print("Number of selected inputs: {}".format(len(input_ids)))
@@ -66,6 +66,12 @@ def get_annotations(args, taxonomy, input_ids):
 
   annotations = {} # list of concepts
   annotations_meta = {} # store metadata
+  special_labels = {} # number of labelers assigned special labels
+
+  if utils.special_labels_present(stub, args.metadata):
+    special_labels_default = None
+  else:
+    special_labels_default = {label: 'n/a' for label in SPECIAL_USE_LABELS.keys()}
 
   # Get annotations for every input id
   for input_id in tqdm(input_ids, total=len(input_ids)):
@@ -110,11 +116,11 @@ def get_annotations(args, taxonomy, input_ids):
                                   'video_id': input_ids[input_id]['video_id'],  
                                   'duplicates': len(meta_) - len(meta)})
 
-    # Extract concepts only
+    # ------- Extract concepts
     user_annotations = {}
     for m in meta_:
       # Extract only category labels
-      if m[0] not in taxonomy.content:
+      if m[0] not in taxonomy.content and m[0] not in SPECIAL_USE_LABELS:
         annotation = m[0]
 
         # Shorten the concept name -> determinate its category
@@ -135,6 +141,16 @@ def get_annotations(args, taxonomy, input_ids):
     for user in user_annotations:
       annotation += list(set(user_annotations[user]))
     annotations[input_id] = annotation
+
+    # ------- Extract special use labels
+    if special_labels_default: # special labels are not available in the app
+      special_labels[input_id] = special_labels_default
+    else:
+      special_labels_ = {label: 0 for label in SPECIAL_USE_LABELS.keys()}
+      for m in meta:
+        if m['concept'] in SPECIAL_USE_LABELS:
+          special_labels_[m['concept']] += 1
+      special_labels[input_id] = special_labels_
 
     # Update max count variable
     annotation_nb_max = max(annotation_nb_max, len(list_annotations_response.annotations))
@@ -159,7 +175,7 @@ def get_annotations(args, taxonomy, input_ids):
   # [print("\t{}: {}".format(k, v)) for k, v in concepts_count.items()]
   # # ------ DEBUG CODE
 
-  return annotations, annotations_meta
+  return annotations, annotations_meta, special_labels
 
 
 def aggregate_annotations(input_ids, annotations):
@@ -402,7 +418,7 @@ def main(args):
   input_ids, input_count = get_input_ids(args)
 
   # Get annotations for every id together with their aggregations
-  annotations, annotations_meta = get_annotations(args, taxonomy, input_ids)
+  annotations, annotations_meta, special_labels = get_annotations(args, taxonomy, input_ids)
   aggregated_annotations, not_annotated_count = aggregate_annotations(input_ids, annotations)
 
   # Compute consensus
@@ -420,7 +436,7 @@ def main(args):
                labels_count, labels_distr, labels_total, duplicates_count, len(conflict_ids))
 
   # Save annotations in csv file
-  save_labels_csv(args, input_ids, classes, 'labels')
+  save_labels_csv(args, input_ids, classes, 'labels', special_labels)
 
   if conflict_ids:
     conflicts = get_conflicting_annotations(input_ids, conflict_ids, annotations_meta, consensus)
@@ -449,7 +465,7 @@ if __name__ == '__main__':
                       type=lambda x: (str(x).lower() == 'true'),
                       help="Save labels in csv file or not.")
   parser.add_argument('--save_conflicts',
-                      default=True,
+                      default=False,
                       type=lambda x: (str(x).lower() == 'true'),
                       help="Save information about annotations with conflicting consensus.")
 
