@@ -75,9 +75,9 @@ def upload_videos_by_url(args, video_ids):
 
   # Re-try to upload until max number of attempts reached or failed_videos is empty
   for i in range(args.max_attempts):
+    failed_videos_ = {}
     if failed_videos:
       print(f'\nUploading attempt number: {i+1}. Videos to upload: {len(failed_videos)}')
-      failed_videos_ = {}
 
       # Upload videos one by one
       for video_id in tqdm(failed_videos, total=len(failed_videos), desc='Uploading'):
@@ -114,6 +114,8 @@ def upload_videos_by_url(args, video_ids):
 
       # Update failed list
       failed_videos = failed_videos_
+    else:
+      break
 
   print(f"\nSuccesfully uploaded videos: {len(video_ids)-len(failed_videos)}")
   return failed_videos, upload_attempts
@@ -127,16 +129,16 @@ def main(args):
   # Upload videos
   failed_videos, upload_attempts  = upload_videos_by_url(args, video_ids)
 
-  # Print out number of attemps for each video
-  print("\n------- Uploading attempts -------")
-  for video_id, n_attempts in upload_attempts.items():
-    print(f"Video id {video_id} | Number of attempts: {n_attempts}")
-
   # Print out failed videos
   if failed_videos:
     print("\n------- Failed videos -------")
     for video_id, status in failed_videos.items():
-      print(f"Video id {video_id} | Status: {status}")
+      print(f"Video id {video_id} | Status: {status} --- {video_ids[video_id]['url']}")
+      
+  # Print out number of attemps for each video
+  print("\n------- Uploading attempts -------")
+  for video_id, n_attempts in upload_attempts.items():
+    print(f"Video id {video_id} | Number of attempts: {n_attempts}")
 
 
 if __name__ == '__main__':  
