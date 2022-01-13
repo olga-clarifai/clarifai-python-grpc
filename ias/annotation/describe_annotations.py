@@ -23,7 +23,7 @@ def get_input_ids(args):
 
   input_ids = {}
   # Get inputs
-  for page in range(1,11):
+  for page in range(1,13):
     list_inputs_response = stub.ListInputs(
                           service_pb2.ListInputsRequest(page=page, per_page=1000),
                           metadata=args.metadata
