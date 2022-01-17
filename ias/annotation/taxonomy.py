@@ -86,7 +86,8 @@ SPECIAL_USE_LABELS = {'1-CT-nottarget-or-english': 'not_targetted_language_or_en
                       '1-video-unavailable': 'video_unvailable'}
 
 GROUPS = {'Hate_Speech': ['hate'],
-          'Group_1': ['adult', 'drugs']}
+          'Group_1': ['adult', 'drugs'],
+          'Group_2': ['crime', 'obscenity']}
 
 def get_taxonomy_object(group_name):
     CATEGORY_OBJECT = namedtuple('CATEGORY_OBJECT', ['name', 'positive', 'safe', 'aggr_positive', 'aggr_safe'])

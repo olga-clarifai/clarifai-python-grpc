@@ -286,7 +286,7 @@ if __name__ == '__main__':
                       help="API key to the required application.") 
   parser.add_argument('--group',
                       default='Hate_Speech',
-                      choices={'Hate_Speech', 'Group_1'},
+                      choices={'Hate_Speech', 'Group_1', 'Group_2'}, # Group_1: adults and drugs. Group_2: crime and OP
                       help="Name of the group.")                   
 
   args = parser.parse_args()

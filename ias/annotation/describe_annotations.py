@@ -44,13 +44,13 @@ def get_input_ids(args):
   
   logger.info("Input ids fetched. Number of fetched inputs: {}".format(len(input_ids)))
 
-  # # ------ DEBUG CODE
-  # input_ids_ = {}
-  # for id in list(input_ids.keys())[200:250]:
-  #   input_ids_[id] = input_ids[id]
-  # input_ids = input_ids_
-  # print("Number of selected inputs: {}".format(len(input_ids)))
-  # # ------ DEBUG CODE
+  # ------ DEBUG CODE
+  input_ids_ = {}
+  for id in list(input_ids.keys())[200:250]:
+    input_ids_[id] = input_ids[id]
+  input_ids = input_ids_
+  print("Number of selected inputs: {}".format(len(input_ids)))
+  # ------ DEBUG CODE
 
   return input_ids, len(input_ids)
 
@@ -91,6 +91,8 @@ def get_annotations(args, taxonomy, input_ids):
     # Loop through all annotations
     for annotation_object in list_annotations_response.annotations:
       ao = MessageToDict(annotation_object)
+
+      print(annotation_object)
 
       # Check for concepts in data but also time segments
       concepts = []
@@ -452,7 +454,7 @@ if __name__ == '__main__':
                       help="API key to the required application.") 
   parser.add_argument('--group',
                       default='Hate_Speech',
-                      choices={'Hate_Speech', 'Group_1'},
+                      choices={'Hate_Speech', 'Group_1', 'Group_2'}, # Group_1: adults and drugs. Group_2: crime and OP
                       help="Name of the group.")  
   parser.add_argument('--tag',
                       default='',
