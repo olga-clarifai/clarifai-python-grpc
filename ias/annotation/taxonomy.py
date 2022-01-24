@@ -24,10 +24,19 @@ TAXONOMY = {'categories': {
                         '2-AD-nudity-or-partial-nudity',
                         '2-AD-sex-toys-or-aids',
                         '2-AD-sexual-activity-or-acts',
-                        '2-AD-sexual-health-sex-ed',
+                        '2-AD-sexual-health-sex-ed', 
                         '2-AD-sexual-innuendo-or-ref',
                         '2-AD-sexual-wearing-of-clothes',
-                        '2-AD-sexuality-or-sex-relations'
+                        '2-AD-sexuality-or-sex-relations',
+                        '2-AD-explicit-sexualized-dancing', # pilot
+                        '2-AD-sextoys-sexaids', # pilot
+                        '2-AD-sexacts', # pilot
+                        '2-AD-sexual-health-sex-edu', # pilot
+                        '2-AD-sexual-innuendo-reference', # pilot
+                        '2-AD-sexualized-clothing', # pilot
+                        '2-AD-sex-sexualrelationships', # pilot
+                        '2-AD-nudity-partial-nudity', # pilot
+                        '2-AD-fetish-kinks-bdsm', # pilot
                     },
                     'safe': {
                         '2-not-adult'
@@ -60,13 +69,36 @@ TAXONOMY = {'categories': {
                         '2-AD-drug-usage-or-pretend',
                         '2-AD-smoke-alcohol-drugs-songs',
                         '2-AD-smoke-or-vape-accessories',
-                        '2-AD-smoke-or-vape-or-pretend'
+                        '2-AD-smoke-or-vape-or-pretend',
+                        '2-ID-smoking-drug-alc-songlyrics', # pilot
+                        '2-ID-alcohol-consume-recognize', # pilot
+                        '2-ID-drug-usage', # pilot
+                        '2-ID-drug-paraphernalia-acc', # pilot
+                        '2-ID-accessory-smoke-vape', # pilot
+                        '2-ID-smoke-vape', # pilot
+                        '2-ID-addiction-effects-recovery'# pilot
+
                     },
                     'safe': {
                         '2-not-drugs-tobacco-vape-alcohol'
                     },
                     'aggr_positive': 'drugs',
                     'aggr_safe': 'not-drugs'
+                },
+                # OBSCENITY
+                'obscenity': {
+                    'positive': {
+                        '2-OP-gross-disgust-repulse', # pilot
+                        '2-OP-mild-severe-offensive-lang', # pilot
+                        '2-OP-mild-severe-offensive-song', # pilot
+                        '2-OP-rude-offensive-gesture', # pilot
+                        '2-OP-vulgar-crass' # pilot
+                    },
+                    'safe': {
+                        '2-not-obscenity-profanity'
+                    },
+                    'aggr_positive': 'obscenity',
+                    'aggr_safe': 'not-obscenity'
                 }
             },
             'content': {
@@ -77,7 +109,8 @@ TAXONOMY = {'categories': {
                 '1-CT-opinion-response-reaction',
                 '1-CT-promo-perpetuation-of-hate',
                 '1-CT-promo-perp-adult-drugs',
-                '1-CT-unsure'
+                '1-CT-unsure',
+                '1-CT-promo-perpuate-AD-OP-ID' # pilot
             }
 }
 
@@ -85,9 +118,15 @@ SPECIAL_USE_LABELS = {'1-CT-nottarget-or-english': 'not_targetted_language_or_en
                       '1-CT-dontunderstand-english': 'dont_understand_english',
                       '1-video-unavailable': 'video_unvailable'}
 
+GT_SAFE_LABEL = 'safe'
+
 GROUPS = {'Hate_Speech': ['hate'],
           'Group_1': ['adult', 'drugs'],
-          'Group_2': ['crime', 'obscenity']}
+          'Group_2': ['crime', 'obscenity'],
+          }
+
+# For pilots
+GROUPS.update({cat: [cat] for cat in CATEGORIES.keys()})          
 
 def get_taxonomy_object(group_name):
     CATEGORY_OBJECT = namedtuple('CATEGORY_OBJECT', ['name', 'positive', 'safe', 'aggr_positive', 'aggr_safe'])
