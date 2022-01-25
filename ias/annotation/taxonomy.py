@@ -4,11 +4,11 @@ CATEGORIES = {'adult': 'adult_&_explicit_sexual_content',
               'arms': 'arms_&_ammunition',
               'crime': 'crime',
               'death': 'death,_injury_or_military_conflict',
-              'social': 'debated_sensitive_social_issue',
               'hate': 'hate_speech',
               'drugs': 'illegal_drugs/tobacco/e-cigarettes/vaping/alcohol',
               'obscenity': 'obscenity_&_profanity',
-              'piracy': 'online_piracy',              
+              'piracy': 'online_piracy',        
+              'social': 'debated_sensitive_social_issue',      
               'spam': 'spam_or_harmful_content',
               'terrorism': 'terrorism',
 }
@@ -18,7 +18,7 @@ CATEGORY_IDX = {category: idx for category, idx in zip(CATEGORIES.values(), rang
 TAXONOMY = {'categories': {
                 # ADULT
                 'adult': {
-                    'positive': {
+                    'positive': [
                         '2-AD-explicit-sexual-dancemoves',
                         '2-AD-fetishes-kinks-or-bdsm',
                         '2-AD-nudity-or-partial-nudity',
@@ -37,32 +37,50 @@ TAXONOMY = {'categories': {
                         '2-AD-sex-sexualrelationships', # pilot
                         '2-AD-nudity-partial-nudity', # pilot
                         '2-AD-fetish-kinks-bdsm', # pilot
-                    },
-                    'safe': {
+                    ],
+                    'safe': [
                         '2-not-adult'
-                    },
+                    ],
                     'aggr_positive': 'adult',
                     'aggr_safe': 'not-adult'
                 },
+                # CRIME
+                'crime': {
+                    'positive': [
+                        '2-OC-violent-harm-self-others',
+                        '2-OC-animal-abuse-or-cruelty',
+                        '2-OC-sexual-assault',
+                        '2-OC-bullying-or-harassment',
+                        '2-OC-trafficking-slavery-rights',
+                        '2-OC-white-collar-crimes',
+                        '2-OC-damage-violation-property',
+                        '2-OC-victim-support-or-recovery'
+                    ],
+                    'safe': [
+                        '2-OC-not-crime-and-harmful-acts'
+                    ],
+                    'aggr_positive': 'crime',
+                    'aggr_safe': 'not-crime'
+                },
                 # HATE SPEECH
                 'hate': {
-                    'positive': {
+                    'positive': [
                         '2-HB-age',
                         '2-HB-class',
                         '2-HB-gender-or-sexual-orient',
                         '2-HB-physical-mental-ability',
                         '2-HB-race-or-ethnicity',
                         '2-HB-religion'
-                    },
-                    'safe': {
+                    ],
+                    'safe': [
                         '2-not-hate'
-                    },
+                    ],
                     'aggr_positive': 'hate',
                     'aggr_safe': 'not-hate'
                 },
                 # DRUGS
                 'drugs': {
-                    'positive': {
+                    'positive': [
                         '2-AD-addiction-effects-recovery',
                         '2-AD-alcohol-consume-recognize',
                         '2-AD-drug-paraphernalia-or-acc',
@@ -78,30 +96,35 @@ TAXONOMY = {'categories': {
                         '2-ID-smoke-vape', # pilot
                         '2-ID-addiction-effects-recovery'# pilot
 
-                    },
-                    'safe': {
+                    ],
+                    'safe': [
                         '2-not-drugs-tobacco-vape-alcohol'
-                    },
+                    ],
                     'aggr_positive': 'drugs',
                     'aggr_safe': 'not-drugs'
                 },
-                # OBSCENITY
+                # OBSCENITY & PROFANITY
                 'obscenity': {
-                    'positive': {
+                    'positive': [
+                        '2-OC-gross-disgust-repulsive',
+                        '2-OC-vulgar-or-crass',
+                        '2-OC-offensive-language',
+                        '2-OC-offensive-song-lyrics',
+                        '2-OC-rude-or-offensive-gestures',
                         '2-OP-gross-disgust-repulse', # pilot
                         '2-OP-mild-severe-offensive-lang', # pilot
                         '2-OP-mild-severe-offensive-song', # pilot
                         '2-OP-rude-offensive-gesture', # pilot
                         '2-OP-vulgar-crass' # pilot
-                    },
-                    'safe': {
-                        '2-not-obscenity-profanity'
-                    },
+                    ],
+                    'safe': [
+                        '2-OC-not-obscenity-and-profanity'
+                    ],
                     'aggr_positive': 'obscenity',
                     'aggr_safe': 'not-obscenity'
                 }
             },
-            'content': {
+            'content': [
                 '1-CT-depict-describe-narrate',
                 '1-CT-educate-inform-raiseaware',
                 '1-CT-illustrate-animate-cartoon',
@@ -109,9 +132,10 @@ TAXONOMY = {'categories': {
                 '1-CT-opinion-response-reaction',
                 '1-CT-promo-perpetuation-of-hate',
                 '1-CT-promo-perp-adult-drugs',
+                '1-CT-promo-perp-obscene-crime',    
                 '1-CT-unsure',
                 '1-CT-promo-perpuate-AD-OP-ID' # pilot
-            }
+            ]
 }
 
 SPECIAL_USE_LABELS = {'1-CT-nottarget-or-english': 'not_targetted_language_or_english',

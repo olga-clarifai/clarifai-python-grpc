@@ -474,7 +474,7 @@ if __name__ == '__main__':
                       help="API key to the required application.")                     
   parser.add_argument('--category', 
                       default='obscenity', 
-                      choices={'adult', 'arms', 'crime', 'death', 'social', 'hate', 'drugs', 'obscenity', 'piracy', 'spam', 'terrorism'},
+                      choices={'adult', 'crime', 'hate', 'drugs', 'obscenity'},
                       help="Name of the group.")
   parser.add_argument('--tag',
                       default='TEST',
