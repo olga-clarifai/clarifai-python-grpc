@@ -47,17 +47,27 @@ TAXONOMY = {'categories': {
                 # CRIME
                 'crime': {
                     'positive': [
-                        '2-OC-violent-harm-self-others',
-                        '2-OC-animal-abuse-or-cruelty',
-                        '2-OC-sexual-assault',
-                        '2-OC-bullying-or-harassment',
-                        '2-OC-trafficking-slavery-rights',
-                        '2-OC-white-collar-crimes',
-                        '2-OC-damage-violation-property',
-                        '2-OC-victim-support-or-recovery'
+                        '2-C-violent-harm-self-others',
+                        '2-C-animal-abuse-or-cruelty',
+                        '2-C-sexual-assault',
+                        '2-C-bullying-or-harassment',
+                        '2-C-trafficking-slavery-rights',
+                        '2-C-white-collar-crimes',
+                        '2-C-damage-violation-property',
+                        '2-C-victim-support-or-recovery',
+                        '2-C-not-crime-and-harmful-acts',
+                        '2-OC-violent-harm-self-others', # old concept name
+                        '2-OC-animal-abuse-or-cruelty', # old concept name
+                        '2-OC-sexual-assault', # old concept name
+                        '2-OC-bullying-or-harassment', # old concept name
+                        '2-OC-trafficking-slavery-rights', # old concept name
+                        '2-OC-white-collar-crimes', # old concept name
+                        '2-OC-damage-violation-property', # old concept name
+                        '2-OC-victim-support-or-recovery' # old concept name
                     ],
                     'safe': [
-                        '2-OC-not-crime-and-harmful-acts'
+                        '2-C-not-crime-and-harmful-acts',
+                        '2-OC-not-crime-and-harmful-acts' # old concept name
                     ],
                     'aggr_positive': 'crime',
                     'aggr_safe': 'not-crime'
@@ -106,11 +116,16 @@ TAXONOMY = {'categories': {
                 # OBSCENITY & PROFANITY
                 'obscenity': {
                     'positive': [
-                        '2-OC-gross-disgust-repulsive',
-                        '2-OC-vulgar-or-crass',
-                        '2-OC-offensive-language',
-                        '2-OC-offensive-song-lyrics',
-                        '2-OC-rude-or-offensive-gestures',
+                        '2-O-gross-disgust-repulsive',
+                        '2-O-vulgar-or-crass',
+                        '2-O-offensive-language',
+                        '2-O-offensive-song-lyrics',
+                        '2-O-rude-or-offensive-gestures',
+                        '2-OC-gross-disgust-repulsive', # old concept name
+                        '2-OC-vulgar-or-crass', # old concept name
+                        '2-OC-offensive-language', # old concept name
+                        '2-OC-offensive-song-lyrics', # old concept name
+                        '2-OC-rude-or-offensive-gestures', # old concept name
                         '2-OP-gross-disgust-repulse', # pilot
                         '2-OP-mild-severe-offensive-lang', # pilot
                         '2-OP-mild-severe-offensive-song', # pilot
@@ -118,7 +133,8 @@ TAXONOMY = {'categories': {
                         '2-OP-vulgar-crass' # pilot
                     ],
                     'safe': [
-                        '2-OC-not-obscenity-and-profanity'
+                        '2-O-not-obscenity-and-profanity',
+                        '2-OC-not-obscenity-and-profanity' # old concept name
                     ],
                     'aggr_positive': 'obscenity',
                     'aggr_safe': 'not-obscenity'
