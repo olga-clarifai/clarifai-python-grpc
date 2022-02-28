@@ -473,7 +473,7 @@ if __name__ == '__main__':
   parser.add_argument('--category', 
                       default='', 
                       choices={'adult', 'arms', 'crime', 'death', 'hate', 'drugs', 'obscenity', 'piracy', 'social', 'spam', 'terrorism'},
-                      help="Name of the group.")
+                      help="Name of the category to compute statistics for.")
   parser.add_argument('--tag',
                       default='',
                       help="Name of the process/application.") 
