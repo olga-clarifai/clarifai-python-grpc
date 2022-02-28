@@ -451,8 +451,8 @@ if __name__ == '__main__':
                       default='',
                       help="API key to the required application.") 
   parser.add_argument('--group',
-                      default='Hate_Speech',
-                      choices={'Hate_Speech', 'Group_1', 'Group_2'}, # Group_1: adults and drugs. Group_2: crime and OP
+                      default='',
+                      choices={'Hate_Speech', 'Adult_Drugs', 'Crime_Obscenity', 'Death_Terrorism_Arms', 'Piracy_DSSI_Spam'},
                       help="Name of the group.")  
   parser.add_argument('--tag',
                       default='',

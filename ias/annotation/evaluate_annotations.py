@@ -61,15 +61,6 @@ def get_ground_truth(args, input_ids):
 
   assert os.path.exists(args.ground_truth), f"Ground truth file {args.ground_truth} doesn't exist"
   ground_truth, no_gt_count = gt.load_from_csv(input_ids, args.ground_truth, GT_SAFE_LABEL)
-
-  # # ------ DEBUG CODE
-  # # Compute list of unique labels
-  # labels = list(itertools.chain(*[ground_truth[input_id] for input_id in input_ids]))
-  # labels_count = {l:labels.count(l) for l in labels}
-  # print("Ground truth labels are: ")
-  # [print("\t{}: {}".format(k, v)) for k, v in labels_count.items()]
-  # # ------ DEBUG CODE
-
   return ground_truth, no_gt_count
 
 
@@ -189,8 +180,6 @@ def aggregate_annotations(args, input_ids, annotations):
       aggregated_annotations[input_id] = aggregation
 
   logger.info("Annotations aggregated.")
-
-  # TODO: store aggregated annotations
   return aggregated_annotations, not_annotated_count
 
 
@@ -239,6 +228,13 @@ def compute_classes(args, taxonomy, input_ids, consensus, ground_truth):
       Ground truth _GP_ (positive), _GN_ (negative), _GS_ (safe), and
       Labels _LP_ (positive), _LN_ (negative), _LS_ (safe) '''
 
+  # Get current category
+  current_category = None
+  for category in taxonomy.categories:
+    if category.aggr_positive == args.category:
+      current_category = category
+      break
+
   classes = {}
   for input_id in input_ids:
     classes_ = []
@@ -248,9 +244,9 @@ def compute_classes(args, taxonomy, input_ids, consensus, ground_truth):
       if consensus[input_id] is None:
         classes_.append('_LN_')
       else:
-        if taxonomy.categories[0].aggr_positive in consensus[input_id]:
+        if current_category.aggr_positive in consensus[input_id]:
           classes_.append('_LP_')
-        elif taxonomy.categories[0].aggr_safe in consensus[input_id]:
+        elif current_category.aggr_safe in consensus[input_id]:
           classes_.append('_LN_')
           classes_.append('_LS_')
         else:
@@ -266,8 +262,6 @@ def compute_classes(args, taxonomy, input_ids, consensus, ground_truth):
         classes_.append('_GN_')
 
       classes[input_id] = classes_
-    else:
-      classes[input_id] = None
 
   logger.info("Classes computed.")
   return classes
@@ -432,7 +426,7 @@ def main(args):
   logger.info("---------- Pilot {} ----------".format(args.tag))
 
   # Get taxonomy for current experiment
-  taxonomy = get_taxonomy_object(args.category)
+  taxonomy = get_taxonomy_object(args.group)
 
   # Get input ids
   input_ids, input_count = get_input_ids(args.metadata)
@@ -471,17 +465,18 @@ if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="Evaluate annotations.")
   parser.add_argument('--api_key',
                       default='',
-                      help="API key to the required application.")                     
+                      help="API key to the required application.")  
+  parser.add_argument('--group',
+                      default='',
+                      choices={'Hate_Speech', 'Adult_Drugs', 'Crime_Obscenity', 'Death_Terrorism_Arms', 'Piracy_DSSI_Spam'},
+                      help="Name of the group.")                      
   parser.add_argument('--category', 
-                      default='obscenity', 
-                      choices={'adult', 'crime', 'hate', 'drugs', 'obscenity'},
+                      default='', 
+                      choices={'adult', 'arms', 'crime', 'death', 'hate', 'drugs', 'obscenity', 'piracy', 'social', 'spam', 'terrorism'},
                       help="Name of the group.")
   parser.add_argument('--tag',
-                      default='TEST',
-                      help="Name of the process/application.") 
-  parser.add_argument('--language',
                       default='',
-                      help="Abbreviation of experiment language.")
+                      help="Name of the process/application.") 
   parser.add_argument('--ground_truth', 
                       default='', 
                       help="Path to csv file with ground truth.")                    
@@ -489,11 +484,11 @@ if __name__ == '__main__':
                       default='', 
                       help="Path to general output directory for this script.")
   parser.add_argument('--save_false_annotations',
-                      default=False,
+                      default=True,
                       type=lambda x: (str(x).lower() == 'true'),
                       help="Save information about false annotations inputs in file or not.")
   parser.add_argument('--save_conflicts',
-                      default=False,
+                      default=True,
                       type=lambda x: (str(x).lower() == 'true'),
                       help="Save information about annotations with conflicting consensus.")
 

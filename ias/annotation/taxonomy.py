@@ -195,7 +195,8 @@ TAXONOMY = {'categories': {
                 '1-CT-opinion-response-reaction',
                 '1-CT-promo-perpetuation-of-hate',
                 '1-CT-promo-perp-adult-drugs',
-                '1-CT-promo-perp-obscene-crime',    
+                '1-CT-promo-perp-obscene-crime', 
+                '1-CT-promo-perp-dth-arms-terror',  
                 '1-CT-unsure',
                 '1-CT-promo-perpuate-AD-OP-ID' # pilot
             ]
@@ -208,9 +209,10 @@ SPECIAL_USE_LABELS = {'1-CT-nottarget-or-english': 'not_targetted_language_or_en
 GT_SAFE_LABEL = 'safe'
 
 GROUPS = {'Hate_Speech': ['hate'],
-          'Group_1': ['adult', 'drugs'],
-          'Group_2': ['crime', 'obscenity'],
-          }
+          'Adult_Drugs': ['adult', 'drugs'],
+          'Crime_Obscenity': ['crime', 'obscenity'],
+          'Death_Terrorism_Arms': ['death', 'terrorism', 'arms'],
+          'Piracy_DSSI_Spam': ['online_piracy', 'debated_sensitive_social_issue', 'spam']}
 
 # For pilots
 GROUPS.update({cat: [cat] for cat in CATEGORIES.keys()})          
