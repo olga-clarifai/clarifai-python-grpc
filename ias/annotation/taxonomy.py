@@ -49,6 +49,7 @@ TAXONOMY = {'categories': {
                     'positive': [
                         '2-A-guns-firearms',
                         '2-A-bombs-hndhld-explosive',
+                        '2-A-small-handheld-bombs',
                         '2-A-fighting-weapons',
                         '2-A-protective-weapons',
                         '2-A-bullets-or-ammunition',
