@@ -106,7 +106,7 @@ def get_previously_uploaded_video_ids(metadata):
   return video_ids
 
 
-def upload_videos(video_ids, videos_path):
+def upload_videos(video_ids, videos_path): 
     '''Upload videos from the list'''
 
     # Keep tack of successful and failed upload
@@ -191,7 +191,7 @@ if __name__ == '__main__':
                       default='', 
                       help="Path to json file with videos metadata.") 
   parser.add_argument('--limit', 
-                      default=10642,
+                      default=5000,
                       type=int, 
                       help="Maximum number of inputs in the app.")  
   parser.add_argument('--shuffle',
@@ -202,7 +202,7 @@ if __name__ == '__main__':
                       default='', 
                       help="Path to general output directory for this script.")
   parser.add_argument('--save_failed',
-                      default=True,
+                      default=False,
                       type=lambda x: (str(x).lower() == 'true'),
                       help="Save information about failed uploads.")
 
