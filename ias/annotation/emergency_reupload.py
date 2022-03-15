@@ -1,5 +1,6 @@
 import argparse
 import os
+import requests
 from tqdm import tqdm
 import numpy as np
 
@@ -21,6 +22,7 @@ stub = service_pb2_grpc.V2Stub(channel)
 
 def process_response(response):
   if response.status.code != status_code_pb2.SUCCESS:
+    print(response)
     print("There was an error with your request!")
     print(f"\tDescription: {response.status.description}")
     print(f"\tDetails: {response.status.details}")
@@ -73,24 +75,95 @@ def add_ground_truth(args, input_ids):
   return input_ids
 
 
-def upload_data(args, input_ids):
-  for input_id in tqdm(input_ids, total=len(input_ids)):
-    post_inputs_response = stub.PostInputs(
-      service_pb2.PostInputsRequest(
-        inputs=[
-          resources_pb2.Input(
-            id = input_id,
-            data=resources_pb2.Data(
-              video=resources_pb2.Video(url=input_ids[input_id]['url']),
-              metadata=input_ids[input_id]['metadata']
-            )
-          )
-        ]
-      ),
-      metadata=args.output_metadata
+def get_previously_uploaded_video_ids(metadata):
+  ''' Get ids of videos that were already uploaded to the app '''
+
+  video_ids = []
+  failed_input_ids = {}
+  
+  # Get inputs
+  for page in range(1, 11):
+    list_inputs_response = stub.ListInputs(
+                          service_pb2.ListInputsRequest(page=page, per_page=1000),
+                          metadata=metadata
     )
-    process_response(post_inputs_response)
-  print("Uploaded sucessfully.")
+
+    # Extract video ids for inputs without errors
+    for input_object in list_inputs_response.inputs:
+      if input_object.status.code != status_code_pb2.INPUT_DOWNLOAD_SUCCESS:
+        failed_input_ids[input_object.id] = input_object
+      else:
+        json_obj = MessageToDict(input_object)
+        video_ids.append(json_obj['data']['metadata']['id'])
+
+  # Remove failed inputs from the app
+  for input_id in failed_input_ids:
+    delete_input_response = stub.DeleteInput(
+        service_pb2.DeleteInputRequest(input_id=input_id),
+        metadata=metadata
+    )
+    process_response(delete_input_response)
+  print("Failed inputs removed from the app: {}".format(len(failed_input_ids)))
+
+  print("Previously successfully uploaded videos: {}".format(len(video_ids)))
+  return video_ids
+
+  
+def upload_data(args, input_ids):
+
+  # Exclude videos that vere previously uploaded
+  previsly_uploaded_video_ids = get_previously_uploaded_video_ids(args.output_metadata)
+  input_ids_ = {}
+  for input_id in input_ids:
+    if input_ids[input_id]['video_id'] not in previsly_uploaded_video_ids:
+      input_ids_[input_id] = input_ids[input_id]
+  input_ids = input_ids_
+
+  failed = 0
+  for input_id in tqdm(input_ids, total=len(input_ids)):
+    url = input_ids[input_id]['url']
+    try:
+      r = requests.get(url, allow_redirects=True, timeout=2.5)
+      if int(r.headers.get('content-length')):
+        content = r.content
+        post_inputs_response = stub.PostInputs(
+          service_pb2.PostInputsRequest(
+            inputs=[
+              resources_pb2.Input(
+                id = input_id,
+                data=resources_pb2.Data(
+                  video=resources_pb2.Video(base64=content),
+                  metadata=input_ids[input_id]['metadata']
+                )
+              )
+            ]
+          ),
+          metadata=args.output_metadata
+        )
+        process_response(post_inputs_response)
+      else:
+        failed += 1
+    except:
+      failed += 1
+  print(f"Upload finished. Failed to upload: {failed} videos.")
+
+  # for input_id in tqdm(input_ids, total=len(input_ids)):
+  #   post_inputs_response = stub.PostInputs(
+  #     service_pb2.PostInputsRequest(
+  #       inputs=[
+  #         resources_pb2.Input(
+  #           id = input_id,
+  #           data=resources_pb2.Data(
+  #             video=resources_pb2.Video(url=input_ids[input_id]['url']),
+  #             metadata=input_ids[input_id]['metadata']
+  #           )
+  #         )
+  #       ]
+  #     ),
+  #     metadata=args.output_metadata
+  #   )
+  #   process_response(post_inputs_response)
+  # print("Uploaded sucessfully.")
 
 def main(args):
 
