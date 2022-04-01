@@ -32,8 +32,8 @@ MAX_ANNOT_PER_VIDEO = 25
 REQ_PER_PAGE = 1000
 CHUNK_SIZE = REQ_PER_PAGE // MAX_ANNOT_PER_VIDEO
 
-LANGUAGE = 'ENG'
-OUT_PATH = '/Users/olgadergachyova/work/ias/clarifai-python-grpc/ias/annotation/output/all_labels'
+LANGUAGE = ''
+OUT_PATH = ''
 GROUPS = ['Hate_Speech', 'Adult_Drugs', 'Crime_Obscenity', 'Death_Terrorism_Arms', 'Piracy_DSSI_Spam']
 
 API_KEYS = [] # %INSERT API KEYS HERE%
@@ -194,7 +194,7 @@ for i, group in enumerate(API_KEYS):
         batch_annotations = get_raw_annotations(api_key, batch_ids)
         group_annotations[batch_num] = batch_annotations
         # Pickle
-        pickle.dump(batch_annotations, open(os.path.join(OUT_PATH, f'{LANGUAGE}_{GROUPS[i]}_batch_{batch_num}.pickle'), "wb"))
+        # pickle.dump(batch_annotations, open(os.path.join(OUT_PATH, f'{LANGUAGE}_{GROUPS[i]}_batch_{batch_num}.pickle'), "wb"))
     raw_annotations.append(group_annotations)
 logger.info(f"Raw annotations extracted.")
 
@@ -220,10 +220,10 @@ for i, group_labels in enumerate(labels):
                 final_labels[video_id].extend(video_labels)
             else:
                 final_labels[video_id] = video_labels
-pickle.dump(final_labels, open(os.path.join(OUT_PATH, f'{LANGUAGE}_final_labels.pickle'), "wb"))
+pickle.dump(final_labels, open(os.path.join(OUT_PATH, f'{LANGUAGE}_human_labels.pickle'), "wb"))
 
 # Save file labels to csv file
-with open(os.path.join(OUT_PATH, f'{LANGUAGE}_final_labels.csv'), 'w') as f:
+with open(os.path.join(OUT_PATH, f'{LANGUAGE}_human_labels.csv'), 'w') as f:
     writer = csv.writer(f)
     writer.writerow(['video_id', 'labels'])
     for video_id, video_labels in final_labels.items():
