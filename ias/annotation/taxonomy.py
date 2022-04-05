@@ -175,6 +175,52 @@ TAXONOMY = {'categories': {
                     'aggr_positive': 'obscenity',
                     'aggr_safe': 'not-obscenity'
                 },
+                # ONLINE PIRACY
+                'piracy': {
+                    'positive': [
+                        '2-PR-free-software-game-movie-tv',
+                        '2-PR-counterfeit-goods' 
+                    ],
+                    'safe': [
+                        '2-PR-not-online-piracy'
+                    ],
+                    'aggr_positive': 'piracy',
+                    'aggr_safe': 'not-piracy'
+                },
+                # DSSI
+                'social': {
+                    'positive': [
+                        '2-DS-reproductive-rights',
+                        '2-DS-cap-punish-corp-punish',
+                        '2-DS-euthanasia',
+                        '2-DS-legal-liberal-crimes',
+                        '2-DS-LGBTQ-rights',
+                        '2-DS-system-racism-soc-ineq',
+                        '2-DS-immigration',
+                        '2-DS-US-border-wall',
+                        '2-DS-universal-healthcare',
+                        '2-DS-gun-control-gun-rights',
+                        '2-DS-unfounded-dangerous-theory',
+                        '2-DS-partisan-polarize-pol-topic'
+                    ],
+                    'safe': [
+                        '2-DS-not-debated-sensitive-issue'
+                    ],
+                    'aggr_positive': 'social',
+                    'aggr_safe': 'not-social'
+                },
+                # SPAM
+                'spam': {
+                    'positive': [
+                        '2-SP-cyberattack-hack-ransom-mal',
+                        '2-SP-phishing-scams'  
+                    ],
+                    'safe': [
+                        '2-SP-not-spam'
+                    ],
+                    'aggr_positive': 'spam',
+                    'aggr_safe': 'not-spam'
+                },
                 # TERRORISM
                 'terrorism': {
                     'positive': [
@@ -197,7 +243,8 @@ TAXONOMY = {'categories': {
                 '1-CT-promo-perpetuation-of-hate',
                 '1-CT-promo-perp-adult-drugs',
                 '1-CT-promo-perp-obscene-crime', 
-                '1-CT-promo-perp-dth-arms-terror',  
+                '1-CT-promo-perp-dth-arms-terror', 
+                '1-CT-promo-perp-dssi-piracy-spam',
                 '1-CT-unsure',
                 '1-CT-promo-perpuate-AD-OP-ID' # pilot
             ]
