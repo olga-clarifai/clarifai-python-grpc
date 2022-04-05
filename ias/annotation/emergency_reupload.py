@@ -167,8 +167,6 @@ def upload_data(args, input_ids):
 
 def main(args):
 
-  print("----- Spliting inputs into groups for labeling task scheduling -----")
-
   # Fetch ids of inputs in the app
   input_ids = get_input_ids(args)
   if args.ground_truth != '':
