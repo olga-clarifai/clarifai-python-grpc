@@ -100,16 +100,16 @@ def main(args, metadata):
 if __name__ == '__main__':  
   parser = argparse.ArgumentParser(description="Remove input videos from app.") 
   parser.add_argument('--api_key',
-                      default='3541bcec8c674006b8aab586ad286b9c',
+                      default='',
                       help="API key to the required application.") 
   parser.add_argument('--tag',
-                    default='DE_Batch1',
+                    default='',
                     help="Name of the process/application.")         
   parser.add_argument('--videos_path',
-                      default='/Users/olgadergachyova/Downloads/DATA/videos/DE/batch1_curated',
+                      default='',
                       help="Path to folder with dowloaded videos.")                
   parser.add_argument('--videos_meta', 
-                      default='/Users/olgadergachyova/work/ias/clarifai-python-grpc/ias/annotation/output/curated_videos/DE/DE_batch1_curated_videos.json', 
+                      default='', 
                       help="Path to json file with videos metadata.") 
 
   args = parser.parse_args()

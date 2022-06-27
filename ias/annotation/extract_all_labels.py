@@ -60,17 +60,6 @@ def get_ids(api_key):
                 raise Exception(f"Duplicated video id ({video_id}) corresponding to input id: {input.id} in app: {api_key}") 
 
             ids[input.id] = video_id
-            # if input.status.code == status_code_pb2.INPUT_DOWNLOAD_SUCCESS:
-            #     ids[input.id] = video_id
-            # else:
-            #     print (f" *********  BAD VIDEO:  video id: {video_id} corresponding to input id: {input.id} in app: {api_key}") 
-
-    # # ------ DEBUG CODE
-    # ids_ = {}
-    # for id in list(ids.keys())[0:5]:
-    #   ids_[id] = ids[id]
-    # ids = ids_
-    # # ------ DEBUG CODE
     
     return ids
 
